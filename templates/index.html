@@ -85,11 +85,35 @@
         text-align: center;
         margin-top: 40px;
       }
+
+      /* Logo styling for the Yara to Sigma Converter header */
+      .logo {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        line-height: 1;
+      }
+      .logo-acronym {
+        font-size: 36px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        color: #e74c3c;
+      }
+      .logo-text {
+        font-size: 14px;
+        letter-spacing: 1px;
+        color: #ecf0f1;
+        margin-top: 4px;
+      }
     </style>
   </head>
   <body>
     <header>
-      <h1>YARA to Sigma Converter</h1>
+      <!-- Logo and title container: displays acronym (YSC) prominently with the full title beneath -->
+      <div class="logo">
+        <span class="logo-acronym">YSC</span>
+        <span class="logo-text">Yara&nbsp;to&nbsp;Sigma&nbsp;Converter</span>
+      </div>
     </header>
     <main>
       <p>
@@ -133,19 +157,11 @@
           <h2>{{ backend }} Query</h2>
           <textarea readonly>{{ queries[backend] }}</textarea>
         </div>
-        <!-- Download Sigma rule button -->
+        <!-- Download Sigma rule button placed directly after the query output -->
         <div class="section">
           <form method="post" action="/download_sigma">
             <input type="hidden" name="sigma_data" value="{{ sigma_text | tojson | safe }}" />
             <button type="submit">Download Sigma Rule</button>
-          </form>
-        </div>
-        <div class="section">
-          <h2>JSON Output</h2>
-          <textarea readonly>{{ json_text }}</textarea>
-          <form method="post" action="/download_json">
-            <input type="hidden" name="json_data" value="{{ json_text | tojson | safe }}" />
-            <button type="submit">Download JSON</button>
           </form>
         </div>
       {% endif %}
