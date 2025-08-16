@@ -1,4 +1,4 @@
-# Yara to Sigma Web UI Converter
+# YSC (Yara to Sigma Web UI Converter)
 
 This repository hosts a web‑based application for converting **YARA** rules into
 approximate **Sigma** detection rules and for synthesising simple search queries for a
