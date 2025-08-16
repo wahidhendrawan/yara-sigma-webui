@@ -283,37 +283,25 @@ def index():
         # Generate queries for all back‑ends
         queries = generate_all_queries(parsed.get('strings', []), parsed.get('cond_type', 'any'))
 
-        # Serialize JSON output containing the Sigma rule and all queries
-        json_data = {
-            'sigma_rule': sigma_rule,
-            'queries': queries,
-        }
-        json_text = json.dumps(json_data, indent=2, ensure_ascii=False)
+        # Note: we no longer build or return JSON data here because the
+        # front‑end no longer exposes JSON download functionality.  The
+        # Sigma rule is still returned as text for display and can be
+        # downloaded separately via the /download_sigma route.
 
     return render_template(
         'index.html',
         yara_text=yara_text,
         sigma_text=sigma_text,
         queries=queries,
-        json_text=json_text,
         backend=selected_backend,
         backends=list(BACKENDS.keys()),
     )
 
 
-@app.route('/download_json', methods=['POST'])
-def download_json():
-    """Serve a JSON file for download.
-
-    The browser posts the JSON content in a hidden form field; this route
-    returns it with appropriate headers so that the client saves it as a
-    .json file.
-    """
-    content = request.form.get('json_data', '')
-    response = make_response(content)
-    response.headers['Content-Type'] = 'application/json; charset=utf-8'
-    response.headers['Content-Disposition'] = 'attachment; filename=converted.json'
-    return response
+# The download_json route has been removed because the front‑end no longer
+# offers a JSON download.  If needed in the future, this route could be
+# reinstated to return a JSON representation of the parsed YARA rule and
+# generated queries.
 
 
 @app.route('/download_sigma', methods=['POST'])

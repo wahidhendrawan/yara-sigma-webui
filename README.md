@@ -1,15 +1,15 @@
 # Yara to Sigma Web UI Converter
 
 This repository hosts a web‑based application for converting **YARA** rules into
-approximate **Sigma** detection rules and for synthesising search queries for a
-range of Security Information and Event Management (SIEM) platforms.  The
-application began as a simple proof of concept for Elastic and Splunk and has
-since been extended to support additional back‑ends such as VMware Carbon Black
-EDR and Microsoft Defender for Endpoint.  It provides a modern, minimalist
-interface through which analysts can upload or paste YARA signatures, obtain a
-corresponding Sigma rule and download a JSON representation of the conversion.
-The aim of this project is to encourage community development of open‑source
-detection engineering tools.
+approximate **Sigma** detection rules and for synthesising simple search queries for a
+range of Security Information and Event Management (SIEM) and Endpoint Detection and
+Response (EDR) platforms.  The application began as a proof of concept for Elastic
+and Splunk and has since been extended to support additional back‑ends such as
+VMware Carbon Black EDR, Microsoft Defender for Endpoint, SentinelOne,
+IBM QRadar and LogRhythm.  It provides a modern, minimalist interface through
+which analysts can upload or paste YARA signatures, obtain a corresponding Sigma
+rule and download the resulting Sigma file.  The aim of this project is to
+encourage community development of open‑source detection engineering tools.
 
 ## Background
 
@@ -84,14 +84,15 @@ environments.
 3.  Navigate to `http://localhost:5000` in a browser.  Upload a `.yar` file or
     paste a YARA rule into the input field.  Choose the target backend from
     the dropdown list (Elastic Stack, Splunk, Carbon Black EDR, Microsoft
-    Defender EDR, etc.) and click **Convert**.  The page will render the
-    generated Sigma rule, display queries for all supported back‑ends and offer
-    a JSON download containing both the rule and the queries.
+    Defender EDR, SentinelOne, IBM QRadar, LogRhythm, etc.) and click
+    **Convert**.  The page will render the generated Sigma rule and display
+    a query for the selected back‑end.  A button beneath the query allows you
+    to download the Sigma rule as a YAML file.
 
-4.  You can copy the Sigma rule, review the per‑backend queries and download
-    the JSON output for integration with your tooling.  Because the parser
-    only supports plain text string patterns, complex YARA rules and advanced
-    condition logic will require manual refinement before deployment.
+4.  You can copy the Sigma rule, review the query for your chosen back‑end and
+    download the Sigma rule for integration with your tooling.  Because the
+    parser only supports plain text string patterns, complex YARA rules and
+    advanced condition logic will require manual refinement before deployment.
 
 ## Limitations
 
