@@ -1,82 +1,159 @@
 <!DOCTYPE html>
-<html lang='en'>
+<html lang="en">
   <head>
-    <meta charset='UTF-8' />
-    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>YARA to Sigma Converter</title>
     <style>
+      /* Minimalist, modern UI styles */
       body {
-        font-family: Arial, Helvetica, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+          Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        background-color: #f1f4f8;
         margin: 0;
+        padding: 0;
+        color: #333;
+      }
+      header {
+        background-color: #2c3e50;
+        color: #fff;
         padding: 20px;
-        background-color: #f5f5f5;
+        text-align: center;
+      }
+      main {
+        max-width: 900px;
+        margin: 30px auto;
+        background-color: #ffffff;
+        padding: 20px 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
       }
       h1 {
-        color: #333;
+        margin-top: 0;
+      }
+      label {
+        font-weight: 600;
+        display: block;
+        margin-bottom: 5px;
       }
       textarea {
         width: 100%;
-        min-height: 200px;
+        min-height: 150px;
         padding: 10px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
+        border: 1px solid #d1d9e0;
+        border-radius: 6px;
         resize: vertical;
         font-family: monospace;
+        box-sizing: border-box;
+        background-color: #fafbfc;
       }
-      select, button {
+      select,
+      input[type="file"],
+      button {
         padding: 8px 12px;
-        border-radius: 4px;
-        border: 1px solid #ccc;
+        border: 1px solid #d1d9e0;
+        border-radius: 6px;
         font-size: 14px;
+        background-color: #fff;
+        box-sizing: border-box;
+      }
+      button {
+        cursor: pointer;
+        background-color: #2c3e50;
+        color: #fff;
+        border: none;
+      }
+      button:hover {
+        background-color: #34495e;
       }
       .form-group {
+        margin-bottom: 20px;
+      }
+      .section {
+        margin-top: 30px;
+      }
+      .query-list {
+        list-style: none;
+        padding-left: 0;
+      }
+      .query-list li {
         margin-bottom: 15px;
       }
-      .output {
-        background-color: #fafafa;
-        color: #333;
-        border: 1px solid #ddd;
+      .footer {
+        font-size: 0.8em;
+        color: #777;
+        text-align: center;
+        margin-top: 40px;
       }
     </style>
   </head>
   <body>
-    <h1>YARA to Sigma Converter</h1>
-    <p>
-      Paste a YARA rule below, choose your target backend and click
-      <strong>Convert</strong> to generate a Sigma rule and a simple search query.
-    </p>
-    <form method='post'>
-      <div class='form-group'>
-        <label for='yara'><strong>YARA Rule</strong></label><br />
-        <textarea
-          name='yara'
-          id='yara'
-          placeholder='Paste your YARA rule here'
-        >{{ yara_text|e }}</textarea>
+    <header>
+      <h1>YARA to Sigma Converter</h1>
+    </header>
+    <main>
+      <p>
+        Upload a <code>.yar</code> file or paste your YARA rule below, choose a
+        backend and click <strong>Convert</strong> to generate a Sigma rule and
+        backend‑specific queries.
+      </p>
+      <form method="post" enctype="multipart/form-data">
+        <div class="form-group">
+          <label for="file">Upload YARA file (.yar)</label>
+          <input type="file" name="file" id="file" accept=".yar" />
+        </div>
+        <div class="form-group">
+          <label for="yara">Paste YARA rule</label>
+          <textarea
+            name="yara"
+            id="yara"
+            placeholder="Paste your YARA rule here"
+          >{{ yara_text|e }}</textarea>
+        </div>
+        <div class="form-group">
+          <label for="backend">Select backend</label>
+          <select name="backend" id="backend">
+            {% for b in backends %}
+            <option value="{{ b }}" {% if backend == b %}selected{% endif %}>{{ b }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <button type="submit">Convert</button>
+        </div>
+      </form>
+      {% if sigma_text %}
+        <div class="section">
+          <h2>Sigma Rule</h2>
+          <textarea readonly>{{ sigma_text }}</textarea>
+        </div>
+        <div class="section">
+          <h2>{{ backend }} Query</h2>
+          <textarea readonly>{{ queries[backend] }}</textarea>
+        </div>
+        <div class="section">
+          <h2>All Backend Queries</h2>
+          <ul class="query-list">
+            {% for key, val in queries.items() %}
+            <li>
+              <strong>{{ key }}:</strong>
+              <textarea readonly>{{ val }}</textarea>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div class="section">
+          <h2>JSON Output</h2>
+          <textarea readonly>{{ json_text }}</textarea>
+          <form method="post" action="/download_json">
+            <input type="hidden" name="json_data" value="{{ json_text | tojson | safe }}" />
+            <button type="submit">Download JSON</button>
+          </form>
+        </div>
+      {% endif %}
+      <div class="footer">
+        Created by wahid_hendrawan
       </div>
-      <div class='form-group'>
-        <label for='backend'><strong>Backend</strong></label>
-        <select name='backend' id='backend'>
-          <option value='elastic' {% if backend == 'elastic' %}selected{% endif %}>
-            Elastic / ELK
-          </option>
-          <option value='splunk' {% if backend == 'splunk' %}selected{% endif %}>
-            Splunk
-          </option>
-        </select>
-      </div>
-      <div class='form-group'>
-        <button type='submit'>Convert</button>
-      </div>
-    </form>
-    {% if sigma_text %}
-      <h2>Generated Sigma Rule</h2>
-      <textarea class='output' readonly>{{ sigma_text }}</textarea>
-      <h2>{{ backend|capitalize }} Query</h2>
-      <textarea class='output' readonly>{{ query_text }}</textarea>
-    {% endif %}
-    <p style='font-size: 0.8em; color: #666; margin-top: 40px;'>
-      Created by wahid_hendrawan
-    </p>
+    </main>
   </body>
 </html>
