@@ -19,11 +19,12 @@ three sections—`meta`, `strings` and `condition`.  The `meta` section holds
 arbitrary key–value pairs such as the author, date and description of the rule
 while the `strings` section defines the byte or text patterns to look for.
 The `condition` section defines the boolean logic that must be satisfied for
-a match【127208082006522†L82-L100】.
+a match ([YARA documentation](https://yara.readthedocs.io/en/stable/writingrules.html#metadata)).
 
 Sigma is a YAML‑based, vendor‑agnostic format for describing log‑based
 detections.  A Sigma rule includes fields like `title`, `id`, `status`,
-`description`, `logsource` and `detection`【203982238247205†L210-L232】.  Rules can be
+`description`, `logsource` and `detection` (see the
+[Sigma documentation](https://sigmahq.io/docs/basics/rules.html#metadata)).  Rules can be
 converted into SIEM‑specific queries using back‑end libraries or simple
 heuristics.
 
@@ -58,11 +59,11 @@ framework when the appropriate back‑ends are available.
 This tool deliberately adopts a permissive model for query generation.  Each
 back‑end is associated with a default field that is commonly used to search
 unstructured log data.  For example, Elastic Stack deployments often use the
-`message` field as the default query target in index templates【317439525268298†L54-L70】, Splunk
-stores the raw event text in the `_raw` field【740609531216668†L119-L126】, Carbon Black EDR
-exposes a `process_cmdline` field for command line searches【65182726867215†L2289-L2301】 and
-Microsoft Defender for Endpoint records the command line in the
-`ProcessCommandLine` column of its advanced hunting schema【639728264160586†L69-L100】.  These
+`message` field as the default query target in index templates, Splunk
+stores the raw event text in the `_raw` field, Carbon Black EDR
+exposes a `process_cmdline` field for command line searches and
+Microsoft Defender for Endpoint records the command line in the
+`ProcessCommandLine` column of its advanced hunting schema.  These
 defaults may be overridden in future versions or adapted to particular
 environments.
 
