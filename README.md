@@ -40,6 +40,13 @@ library (`yar2sig`), configurable mapping specifications (called
 
 ## Installation
 
+Before installing, clone this repository and check out the **version-2** branch. This ensures you are working with the version‑2 code and not the older version‑1 branch.
+
+```bash
+git clone -b version-2 --single-branch https://github.com/wahidhendrawan/yara-sigma-webui.git
+cd yara-sigma-webui
+```
+
 Install the required dependencies and this package.  We recommend
 using a virtual environment:
 
