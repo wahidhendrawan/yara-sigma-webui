@@ -12,6 +12,23 @@ from __future__ import annotations
 import yaml
 from flask import Flask, render_template, request, make_response
 
+import os
+import sys
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Adjust Python path for local development.
+#
+# When running this web UI directly from a cloned repository without
+# installing the `yar2sig` package (e.g. via `pip install -e .`), Python
+# may not know where to find the package.  To avoid a `ModuleNotFoundError`
+# we explicitly add the repository root and the `yar2sig` subdirectory to
+# `sys.path` before attempting to import from it.  This logic has no effect
+# when the package has been installed properly.
+_root = Path(__file__).resolve().parent
+sys.path.append(str(_root))
+sys.path.append(str(_root / 'yar2sig'))
+
 from yar2sig import available_pipelines, load_mapping
 from yar2sig.parsers import parse_yara_rule
 from yar2sig.emitters import emit_sigma
