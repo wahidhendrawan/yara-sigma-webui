@@ -76,9 +76,25 @@ except ModuleNotFoundError:
 
     # Define a local resources-like loader for accessing pipeline YAML files.
     def _pipeline_path() -> Path:
-        """Return the directory containing pipeline YAML mappings."""
-        # Pipelines are expected under ``mappings/pipelines`` relative to this file.
-        return _base / 'mappings' / 'pipelines'
+        """Return the directory containing pipeline YAML mappings.
+
+        The converter looks for mapping definitions in a couple of possible
+        locations to support different deployment layouts.  It first checks
+        for a ``mappings/pipelines`` directory alongside this ``app.py``; if
+        that does not exist (for example when the application is installed
+        into a separate prefix like ``/opt``), it falls back to the
+        ``yar2sig/mappings/pipelines`` directory that ships with the
+        codebase.  If neither directory exists, the function returns the
+        first candidate path to ensure a valid ``Path`` object is returned.
+        """
+        candidates = [
+            _base / 'mappings' / 'pipelines',
+            _base / 'yar2sig' / 'mappings' / 'pipelines',
+        ]
+        for cand in candidates:
+            if cand.is_dir():
+                return cand
+        return candidates[0]
 
     def available_pipelines() -> list[str]:
         """Return a sorted list of available pipeline names."""
