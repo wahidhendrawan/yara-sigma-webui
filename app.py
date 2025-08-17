@@ -17,17 +17,24 @@ import sys
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Adjust Python path for local development.
+# Ensure the yar2sig package is discoverable at runtime.
 #
-# When running this web UI directly from a cloned repository without
-# installing the `yar2sig` package (e.g. via `pip install -e .`), Python
-# may not know where to find the package.  To avoid a `ModuleNotFoundError`
-# we explicitly add the repository root and the `yar2sig` subdirectory to
-# `sys.path` before attempting to import from it.  This logic has no effect
-# when the package has been installed properly.
-_root = Path(__file__).resolve().parent
-sys.path.append(str(_root))
-sys.path.append(str(_root / 'yar2sig'))
+# The web UI can be executed in a variety of contexts: directly from the
+# repository, installed via pip, or deployed into a directory that may not
+# include the `yar2sig` sources alongside app.py.  To avoid a
+# `ModuleNotFoundError` when the package hasn't been installed, search
+# upwards from the current file's directory for a `yar2sig` folder and
+# append the discovered location(s) to `sys.path`.  When the package has
+# been installed, this loop will have no effect and the standard import
+# resolution will succeed.
+_this_file = Path(__file__).resolve()
+_base = _this_file.parent
+for parent in [_base] + list(_base.parents):
+    candidate = parent / 'yar2sig'
+    if candidate.is_dir():
+        sys.path.insert(0, str(parent))
+        sys.path.insert(0, str(candidate))
+        break
 
 from yar2sig import available_pipelines, load_mapping
 from yar2sig.parsers import parse_yara_rule
