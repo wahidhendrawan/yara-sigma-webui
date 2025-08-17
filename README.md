@@ -1,116 +1,105 @@
-# YSC (Yara to Sigma Web UI Converter)
+# YARA → Sigma Converter (Version 2)
 
-This repository hosts a web‑based application for converting **YARA** rules into
-approximate **Sigma** detection rules and for synthesising simple search queries for a
-range of Security Information and Event Management (SIEM) and Endpoint Detection and
-Response (EDR) platforms.  The application began as a proof of concept for Elastic
-and Splunk and has since been extended to support additional back‑ends such as
-VMware Carbon Black EDR, Microsoft Defender for Endpoint, SentinelOne,
-IBM QRadar and LogRhythm.  It provides a modern, minimalist interface through
-which analysts can upload or paste YARA signatures, obtain a corresponding Sigma
-rule and download the resulting Sigma file.  The aim of this project is to
-encourage community development of open‑source detection engineering tools.
+This repository contains a Python library and accompanying web
+application for converting **YARA** rules into approximate
+**Sigma** detection rules.  Version 2 is a significant overhaul of
+the original proof‑of‑concept: it introduces a modular conversion
+library (`yar2sig`), configurable mapping specifications (called
+*pipelines*), a command‑line interface and a refreshed web UI.
 
-## Background
+## Key features
 
-YARA rules are used to identify files or processes by matching on text,
-hexadecimal patterns and boolean conditions.  A typical YARA rule contains
-three sections—`meta`, `strings` and `condition`.  The `meta` section holds
-arbitrary key–value pairs such as the author, date and description of the rule
-while the `strings` section defines the byte or text patterns to look for.
-The `condition` section defines the boolean logic that must be satisfied for
-a match ([YARA documentation](https://yara.readthedocs.io/en/stable/writingrules.html#metadata)).
+* **Modular architecture** – YARA parsing, IOC classification,
+  mapping, Sigma emission and UI are cleanly separated into
+  independent modules.  You can easily swap out the parser or add
+  new mapping pipelines for different log sources.
+* **Configurable pipelines** – Mapping behaviour is driven by
+  YAML specifications stored under `yar2sig/mappings/pipelines`.  Each
+  pipeline defines how extracted indicators map to Sigma fields for a
+  particular log source (e.g. Sysmon, Windows Security).  New
+  pipelines can be added without touching any code.
+* **IOC heuristics** – Plain text patterns extracted from YARA
+  strings are classified as URLs, domains, IPs, hashes, file paths
+  or generic strings.  These types determine which Sigma fields are
+  populated.  The classification heuristics are simple by design and
+  should be reviewed for critical rules.
+* **Conversion report** – Every conversion produces a list of
+  human‑readable notes describing how each pattern was classified and
+  mapped.  These notes are stored in the Sigma rule under the
+  custom `x-conversion-notes` field and are displayed in the web UI
+  and CLI output.
+* **Command‑line interface** – Use `python -m yar2sig` to convert
+  single files or directories of YARA rules into Sigma YAML.  The
+  pipeline can be specified on the command line and the resulting
+  files are written to disk.
+* **Refreshed web interface** – The Flask application uses the
+  library internally and exposes pipeline and back‑end selection
+  controls.  Upload a `.yar` file or paste a rule, choose a
+  pipeline and view the generated Sigma rule along with the
+  conversion report.
 
-Sigma is a YAML‑based, vendor‑agnostic format for describing log‑based
-detections.  A Sigma rule includes fields like `title`, `id`, `status`,
-`description`, `logsource` and `detection` (see the
-[Sigma documentation](https://sigmahq.io/docs/basics/rules.html#metadata)).  Rules can be
-converted into SIEM‑specific queries using back‑end libraries or simple
-heuristics.
+## Installation
 
-This project does **not** attempt to perform a perfect semantic conversion
-between YARA and Sigma.  Instead, it demonstrates one possible mapping:
+Install the required dependencies and this package.  We recommend
+using a virtual environment:
 
-1.  **Meta** information such as the author, description and date are copied
-    into the appropriate Sigma fields when available.  A UUID is generated
-    automatically for the Sigma rule identifier.
-2.  **Strings** that are defined as plain text patterns are extracted and
-    mapped into a detection section.  Each string becomes its own detection
-    clause using the `CommandLine|contains` modifier—a common field used in
-    many Sigma rules.  Hexadecimal and regular expression patterns are
-    currently ignored.
-3.  **Condition** logic is translated into either an “all patterns must
-    match” or “any pattern may match” rule.  If the original condition
-    contains `all of`, the generated Sigma rule will require all patterns to
-    be present.  If it contains `any of` or if no keyword is detected,
-    matching on any of the patterns will satisfy the rule.
-4.  **Queries** for Splunk and Elastic are generated using simple string
-    containment expressions.  Splunk queries consist of quoted pattern
-    searches joined by either `AND` or `OR`, while Elastic queries use
-    Lucene syntax (`message:*pattern*`).  These queries are provided as
-    examples and may need further tuning for production environments.
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-Although the conversion implemented here is simplistic, it offers a useful
-demonstration of how YARA signatures can be repurposed to create log
-detections.  Feel free to extend the conversion logic, add support for
-additional modifiers or integrate with the official [pySigma](https://github.com/SigmaHQ/pySigma)
-framework when the appropriate back‑ends are available.
+If you wish to install the package for use as a library or CLI:
 
-This tool deliberately adopts a permissive model for query generation.  Each
-back‑end is associated with a default field that is commonly used to search
-unstructured log data.  For example, Elastic Stack deployments often use the
-`message` field as the default query target in index templates, Splunk
-stores the raw event text in the `_raw` field, Carbon Black EDR
-exposes a `process_cmdline` field for command line searches and
-Microsoft Defender for Endpoint records the command line in the
-`ProcessCommandLine` column of its advanced hunting schema.  These
-defaults may be overridden in future versions or adapted to particular
-environments.
+```bash
+pip install -e .
+```
 
 ## Usage
 
-1.  Install the Python dependencies (Flask and PyYAML):
+### CLI
 
-    ```bash
-    pip install Flask PyYAML
-    ```
+Convert a single YARA file using the default Sysmon pipeline and write
+the resulting Sigma rule to `converted/`:
 
-2.  Launch the web application:
+```bash
+python -m yar2sig -i rules/example.yar -p sysmon -o converted
+```
 
-    ```bash
-    python app.py
-    ```
+Convert all `.yar` files in a directory using the Windows Security
+pipeline:
 
-3.  Navigate to `http://localhost:5000` in a browser.  Upload a `.yar` file or
-    paste a YARA rule into the input field.  Choose the target backend from
-    the dropdown list (Elastic Stack, Splunk, Carbon Black EDR, Microsoft
-    Defender EDR, SentinelOne, IBM QRadar, LogRhythm, etc.) and click
-    **Convert**.  The page will render the generated Sigma rule and display
-    a query for the selected back‑end.  A button beneath the query allows you
-    to download the Sigma rule as a YAML file.
+```bash
+python -m yar2sig -i yara_rules/ -p winsec -o sigma_rules
+```
 
-4.  You can copy the Sigma rule, review the query for your chosen back‑end and
-    download the Sigma rule for integration with your tooling.  Because the
-    parser only supports plain text string patterns, complex YARA rules and
-    advanced condition logic will require manual refinement before deployment.
+### Web UI
+
+Start the Flask development server:
+
+```bash
+python app.py
+```
+
+Navigate to <http://localhost:5000> in your browser.  Paste a YARA
+rule or upload a `.yar` file, choose the target pipeline and see the
+generated Sigma rule and conversion notes.  You can download the
+Sigma YAML from the interface.
 
 ## Limitations
 
-* Only plain text patterns defined in the `strings` section are considered.
-  Hexadecimal patterns and regular expressions are ignored.
-* The conversion from YARA condition logic to Sigma remains simplistic and
-  supports only “any of” vs “all of” semantics.
-* Only a limited set of SIEM/EDR platforms are configured.  Adding new
-  back‑ends requires associating a suitable default search field with the
-  platform.
-* Generated queries are heuristic and may require tuning.  For example, you
-  might prefer to search event data using more specific fields such as `Image`,
-  `EventID`, `FileName`, etc., depending on how your telemetry is indexed.
+* Only plain‑text strings are extracted from YARA rules.  Hex and
+  regular expression patterns are ignored.
+* The IOC classification heuristics are intentionally simple.  They
+  may misclassify edge cases; review the conversion notes and
+  adjust the mapping specification if needed.
+* Mapping specifications only cover a few common Windows sources
+  (Sysmon and Windows Security) out of the box.  Support for
+  additional log sources can be added by creating new YAML files
+  under `yar2sig/mappings/pipelines`.
 
 ## Contributing
 
-Contributions are highly encouraged.  Detection engineering is an evolving
-discipline, and community input helps improve both the parsing logic and the
-quality of the queries.  Feel free to submit pull requests with bug fixes,
-additional back‑end mappings or UI enhancements.  The project is released
-under the MIT License; see `LICENSE` for details.
+Contributions are welcome!  You can add new pipelines, improve the
+parser, extend the IOC heuristics or enhance the UI.  Please open
+issues or pull requests with your suggestions and bug reports.

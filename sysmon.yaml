@@ -1,0 +1,23 @@
+logsource:
+  product: windows
+  service: sysmon
+mappings:
+  url:
+    fields: [url.full, message]
+    op: contains
+  domain:
+    fields: [dns.question.name, destination.domain]
+    op: equals
+  ip:
+    fields: [destination.ip]
+    op: equals
+  hash:
+    fields: [file.hash.sha256, process.hash.sha256, file.hash.md5, process.hash.md5]
+    op: equals
+  path_or_filename:
+    fields: [file.path, file.name, process.executable, process.command_line]
+    op: contains
+  generic_string:
+    fields: [process.command_line, message]
+    op: contains
+fallback_field: message

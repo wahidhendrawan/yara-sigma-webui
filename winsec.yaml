@@ -1,0 +1,23 @@
+logsource:
+  product: windows
+  service: security
+mappings:
+  url:
+    fields: [url.full, message]
+    op: contains
+  domain:
+    fields: [destination.domain]
+    op: equals
+  ip:
+    fields: [destination.ip]
+    op: equals
+  hash:
+    fields: [file.hash.sha256, file.hash.md5]
+    op: equals
+  path_or_filename:
+    fields: [file.path, file.name]
+    op: contains
+  generic_string:
+    fields: [message]
+    op: contains
+fallback_field: message
