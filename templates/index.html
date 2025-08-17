@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>YARA to Sigma Converter</title>
     <style>
       /* Minimalist, modern UI styles */
@@ -72,102 +72,86 @@
       .section {
         margin-top: 30px;
       }
-      .query-list {
-        list-style: none;
-        padding-left: 0;
-      }
-      .query-list li {
-        margin-bottom: 15px;
-      }
-      .footer {
-        font-size: 0.8em;
-        color: #777;
-        text-align: center;
-        margin-top: 40px;
-      }
-
-      /* Logo styling for the Yara to Sigma Converter header */
-      .logo {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        line-height: 1;
-      }
-      .logo-acronym {
-        font-size: 36px;
-        font-weight: 700;
-        letter-spacing: 2px;
-        color: #e74c3c;
-      }
-      .logo-text {
-        font-size: 14px;
-        letter-spacing: 1px;
-        color: #ecf0f1;
-        margin-top: 4px;
+      .notes {
+        background-color: #fafafa;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        padding: 10px;
+        margin-top: 10px;
       }
     </style>
   </head>
   <body>
     <header>
-      <!-- Logo and title container: displays acronym (YSC) prominently with the full title beneath -->
-      <div class="logo">
-        <span class="logo-acronym">YSC</span>
-        <span class="logo-text">Yara&nbsp;to&nbsp;Sigma&nbsp;Converter</span>
-      </div>
+      <h1>YARA to Sigma Converter (v2)</h1>
     </header>
     <main>
-      <p>
-        Upload a <code>.yar</code> file or paste your YARA rule below, choose a
-        backend and click <strong>Convert</strong> to generate a Sigma rule and
-        backend‑specific queries.
-      </p>
       <form method="post" enctype="multipart/form-data">
         <div class="form-group">
           <label for="file">Upload YARA file (.yar)</label>
-          <input type="file" name="file" id="file" accept=".yar" />
+          <input type="file" id="file" name="file" accept=".yar,.yara" />
         </div>
         <div class="form-group">
           <label for="yara">Paste YARA rule</label>
-          <textarea
-            name="yara"
-            id="yara"
-            placeholder="Paste your YARA rule here"
-          >{{ yara_text|e }}</textarea>
+          <textarea id="yara" name="yara" placeholder="rule example { ... }">{{ yara_text|e }}</textarea>
         </div>
         <div class="form-group">
+          <label for="pipeline">Select pipeline</label>
+          <select id="pipeline" name="pipeline">
+            {% for p in pipelines %}
+            <option value="{{ p }}" {% if p == pipeline %}selected{% endif %}>{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Backend selection for Sigma query conversion -->
+        <div class="form-group">
           <label for="backend">Select backend</label>
-          <select name="backend" id="backend">
+          <select id="backend" name="backend">
             {% for b in backends %}
-            <option value="{{ b }}" {% if backend == b %}selected{% endif %}>{{ b }}</option>
+            <option value="{{ b }}" {% if b == backend %}selected{% endif %}>{{ b }}</option>
             {% endfor %}
           </select>
         </div>
         <div class="form-group">
           <button type="submit">Convert</button>
-          <!-- Clear button resets the form by reloading the page -->
-          <button type="button" onclick="window.location.href='/'" style="margin-left:10px; background-color:#95a5a6;">Clear</button>
         </div>
       </form>
       {% if sigma_text %}
-        <div class="section">
-          <h2>Sigma Rule</h2>
-          <textarea readonly>{{ sigma_text }}</textarea>
-        </div>
-        <div class="section">
-          <h2>{{ backend }} Query</h2>
-          <textarea readonly>{{ queries[backend] }}</textarea>
-        </div>
-        <!-- Download Sigma rule button placed directly after the query output -->
-        <div class="section">
-          <form method="post" action="/download_sigma">
-            <input type="hidden" name="sigma_data" value="{{ sigma_text | tojson | safe }}" />
-            <button type="submit">Download Sigma Rule</button>
-          </form>
-        </div>
+      <section class="section">
+        <h2>Sigma Rule</h2>
+        <pre>{{ sigma_text }}</pre>
+        <form method="post" action="/download_sigma">
+          <input type="hidden" name="sigma_data" value="{{ sigma_text | e }}" />
+          <button type="submit">Download Sigma Rule</button>
+        </form>
+      </section>
+      {% if queries %}
+      <section class="section">
+        <h2>Backend Queries ({{ backend }})</h2>
+        <pre>
+{% for q in queries %}
+{{ q }}
+{% endfor %}
+        </pre>
+      </section>
       {% endif %}
-      <div class="footer">
-        Created by <a href="https://www.linkedin.com/in/wahid-hendrawan-398385176" target="_blank" rel="noopener noreferrer">Wahid Hendrawan</a>
-      </div>
+      {% if notes %}
+      <section class="section">
+        <h2>Conversion Notes</h2>
+        <div class="notes">
+          <ul>
+            {% for n in notes %}
+            <li>{{ n }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+      {% endif %}
+      {% endif %}
     </main>
+    <footer style="text-align:center; font-size:0.8em; margin-top:20px; color:#777;">
+      Created by Wahid Hendrawan • Version 2
+    </footer>
   </body>
 </html>
