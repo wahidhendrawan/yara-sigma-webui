@@ -53,28 +53,233 @@ for parent in [_base] + list(_base.parents):
         sys.path.insert(0, str(candidate))
         break
 
-# Import the yar2sig modules.  If they cannot be found, attempt a second
-# import after modifying sys.path based on this file's location.  This
-# caters for deployment environments where sys.path was not adjusted at
-# module import time for some reason (e.g. older revisions of this file).
+# ---------------------------------------------------------------------------
+# Local fallback implementation of the yar2sig API.
+#
+# If the yar2sig package is unavailable, provide minimalist implementations of
+# the conversion functions directly in this module.  These implementations
+# mirror the behaviour of the library's ``available_pipelines``,
+# ``load_mapping``, ``parse_yara_rule``, ``emit_sigma`` and ``classify_pattern``
+# functions.  They operate on the mapping YAML files stored under
+# ``mappings/pipelines`` relative to this file.  When the full yar2sig package
+# is available (for example via a pip installation), the import below will
+# override these fallback definitions.
 try:
-    from yar2sig import available_pipelines, load_mapping
-    from yar2sig.parsers import parse_yara_rule
-    from yar2sig.emitters import emit_sigma
+    from yar2sig import available_pipelines, load_mapping  # type: ignore
+    from yar2sig.parsers import parse_yara_rule  # type: ignore
+    from yar2sig.emitters import emit_sigma  # type: ignore
 except ModuleNotFoundError:
-    # Re-compute candidate paths relative to this file and insert them.
-    _this = Path(__file__).resolve()
-    _dir = _this.parent
-    cand = _dir / 'yar2sig'
-    if cand.is_dir():
-        sys.path.insert(0, str(_dir))
-        sys.path.insert(0, str(cand))
-        from yar2sig import available_pipelines, load_mapping
-        from yar2sig.parsers import parse_yara_rule
-        from yar2sig.emitters import emit_sigma
-    else:
-        # Reraise the original error if the package still isn't found
-        raise
+    import re
+    import uuid
+    import datetime
+    from importlib import resources
+
+    # Define a local resources-like loader for accessing pipeline YAML files.
+    def _pipeline_path() -> Path:
+        """Return the directory containing pipeline YAML mappings."""
+        # Pipelines are expected under ``mappings/pipelines`` relative to this file.
+        return _base / 'mappings' / 'pipelines'
+
+    def available_pipelines() -> list[str]:
+        """Return a sorted list of available pipeline names."""
+        dirpath = _pipeline_path()
+        names: list[str] = []
+        if dirpath.is_dir():
+            for entry in dirpath.iterdir():
+                if entry.suffix == '.yaml':
+                    names.append(entry.stem)
+        return sorted(names)
+
+    def load_mapping(name: str) -> dict:
+        """Load a pipeline mapping specification by name."""
+        path = _pipeline_path() / f'{name}.yaml'
+        if not path.exists():
+            raise FileNotFoundError(f"Pipeline '{name}' not found")
+        with path.open('r', encoding='utf-8') as fh:
+            return yaml.safe_load(fh) or {}
+
+    def parse_yara_rule(text: str) -> dict:
+        """Parse a single YARA rule into a simplified structure.
+
+        This lightweight parser extracts the rule name, meta key/values,
+        plain‑text string patterns from the ``strings`` section and
+        determines whether all or any patterns must match.
+        """
+        def remove_comments(s: str) -> str:
+            # Remove C style block comments and C++ style line comments.
+            s = re.sub(r'/\*.*?\*/', '', s, flags=re.S)
+            s = re.sub(r'//.*', '', s)
+            return s
+
+        text_no_comments = remove_comments(text)
+
+        # Rule name
+        name_match = re.search(r'(?m)^\s*rule\s+([^\s{]+)', text_no_comments)
+        name = name_match.group(1) if name_match else 'ConvertedRule'
+
+        # Meta section
+        meta: dict[str, str] = {}
+        meta_section = re.search(
+            r'meta\s*:\s*(.*?)\s*(strings|condition)\s*:',
+            text_no_comments,
+            flags=re.S | re.I,
+        )
+        if meta_section:
+            body = meta_section.group(1)
+            for line in body.splitlines():
+                line = line.strip()
+                if not line or line.startswith('//'):
+                    continue
+                if '=' in line:
+                    key, val = line.split('=', 1)
+                    key = key.strip()
+                    val = val.strip().strip("\"' ")
+                    meta[key] = val
+
+        # Strings section
+        strings: list[str] = []
+        strings_section = re.search(
+            r'strings\s*:\s*(.*?)\s*condition\s*:',
+            text_no_comments,
+            flags=re.S | re.I,
+        )
+        if strings_section:
+            body = strings_section.group(1)
+            for line in body.splitlines():
+                line = line.strip()
+                if not line or line.startswith('//'):
+                    continue
+                if '=' in line:
+                    _, val = line.split('=', 1)
+                    val = val.strip()
+                    str_match = re.search(r'"([^"\\]*(?:\\.[^"\\]*)*)"', val)
+                    if str_match:
+                        pattern = str_match.group(1)
+                        strings.append(pattern)
+
+        # Condition
+        condition_text = ''
+        condition_section = re.search(
+            r'condition\s*:\s*(.*?)(?:rule\s+\w+|$)',
+            text_no_comments,
+            flags=re.S | re.I,
+        )
+        if condition_section:
+            condition_text = condition_section.group(1).strip()
+
+        cond_type = 'any'
+        if re.search(r'\ball\s+of\b', condition_text, flags=re.I):
+            cond_type = 'all'
+        elif re.search(r'\bany\s+of\b', condition_text, flags=re.I):
+            cond_type = 'any'
+
+        return {
+            'name': name,
+            'meta': meta,
+            'strings': strings,
+            'cond_type': cond_type,
+        }
+
+    # Indicator classification heuristics
+    HASH_RE = re.compile(r'^[0-9a-fA-F]{32,64}$')
+    IP_V4_RE = re.compile(r'^(?:\d{1,3}\.){3}\d{1,3}$')
+    IP_V6_RE = re.compile(r'^[0-9a-fA-F:]{3,39}$')
+    DOMAIN_RE = re.compile(r'^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+    COMMON_FILE_EXTENSIONS = {
+        'exe', 'dll', 'sys', 'bat', 'cmd', 'ps1', 'psm1',
+        'vbs', 'js', 'scr', 'jar', 'zip', 'rar'
+    }
+
+    def classify_pattern(pattern: str) -> str:
+        """Classify a plain text pattern into an IOC type."""
+        s = pattern.strip()
+        if '://' in s:
+            return 'url'
+        if IP_V4_RE.match(s) or IP_V6_RE.match(s):
+            return 'ip'
+        if HASH_RE.match(s):
+            return 'hash'
+        if '@' in s and DOMAIN_RE.match(s.split('@')[-1]):
+            return 'domain'
+        if '/' in s or '\\' in s:
+            return 'path_or_filename'
+        ext_match = re.search(r'\.([A-Za-z0-9]{2,5})$', s)
+        if ext_match:
+            ext = ext_match.group(1).lower()
+            if ext in COMMON_FILE_EXTENSIONS:
+                return 'path_or_filename'
+        if DOMAIN_RE.match(s) and ' ' not in s:
+            return 'domain'
+        return 'generic_string'
+
+    def _select_field(mapping: dict, indicator_type: str) -> tuple[str, str]:
+        """Select Sigma field and operator for a given indicator type."""
+        m = mapping.get('mappings', {})
+        if indicator_type in m:
+            spec = m[indicator_type]
+            if isinstance(spec, dict) and 'fields' not in spec:
+                fields: list[str] = []
+                for sub in spec.values():
+                    if isinstance(sub, dict) and 'fields' in sub:
+                        fields.extend(sub['fields'])
+                op = next(iter(spec.values())).get('op', 'contains')
+                return (fields[0], op) if fields else (mapping.get('fallback_field', 'message'), 'contains')
+            fields = spec.get('fields', []) if isinstance(spec, dict) else []
+            op = spec.get('op', 'contains') if isinstance(spec, dict) else 'contains'
+            if fields:
+                return (fields[0], op)
+        fallback_field = mapping.get('fallback_field', 'message')
+        return (fallback_field, 'contains')
+
+    def emit_sigma(parsed: dict, mapping: dict) -> tuple[dict, list[str]]:
+        """Generate a Sigma rule and conversion report from a parsed YARA rule."""
+        meta = parsed.get('meta', {})
+        patterns: list[str] = parsed.get('strings', [])
+        cond_type: str = parsed.get('cond_type', 'any')
+        report: list[str] = []
+
+        detection: dict[str, any] = {}
+        selection_names: list[str] = []
+
+        for idx, pattern in enumerate(patterns):
+            indicator_type = classify_pattern(pattern)
+            field, op = _select_field(mapping, indicator_type)
+            sel_name = f'sel{idx + 1}'
+            key = f'{field}|contains' if op == 'contains' else field
+            detection[sel_name] = {key: pattern}
+            selection_names.append(sel_name)
+            report.append(f"Pattern '{pattern}' classified as {indicator_type} mapped to field '{field}' using operator '{op}'")
+
+        if selection_names:
+            if cond_type == 'all':
+                cond = ' and '.join(selection_names)
+            else:
+                cond = ' or '.join(selection_names)
+            detection['condition'] = cond
+        else:
+            detection['condition'] = 'false'
+            report.append('No patterns were extracted; condition set to false')
+
+        sigma_rule: dict = {
+            'title': parsed.get('name', 'ConvertedRule'),
+            'id': str(uuid.uuid4()),
+            'status': 'experimental',
+            'description': meta.get('description', f"Converted from YARA rule {parsed.get('name', '')}") or '',
+            'author': meta.get('author', 'unknown'),
+            'date': meta.get('date', datetime.date.today().strftime('%Y/%m/%d')),
+            'references': [],
+            'tags': [],
+            'logsource': mapping.get('logsource', {'category': 'process_creation', 'product': 'unknown'}),
+            'detection': detection,
+            'falsepositives': ['unknown'],
+            'level': 'medium',
+            'x-yara-source': {
+                'rule': parsed.get('name', 'ConvertedRule'),
+            },
+            'x-conversion-notes': report,
+            'x-conf-loss': 'medium' if patterns else 'high',
+        }
+        return sigma_rule, report
 
 app = Flask(__name__)
 
