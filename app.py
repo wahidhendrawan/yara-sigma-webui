@@ -53,9 +53,28 @@ for parent in [_base] + list(_base.parents):
         sys.path.insert(0, str(candidate))
         break
 
-from yar2sig import available_pipelines, load_mapping
-from yar2sig.parsers import parse_yara_rule
-from yar2sig.emitters import emit_sigma
+# Import the yar2sig modules.  If they cannot be found, attempt a second
+# import after modifying sys.path based on this file's location.  This
+# caters for deployment environments where sys.path was not adjusted at
+# module import time for some reason (e.g. older revisions of this file).
+try:
+    from yar2sig import available_pipelines, load_mapping
+    from yar2sig.parsers import parse_yara_rule
+    from yar2sig.emitters import emit_sigma
+except ModuleNotFoundError:
+    # Re-compute candidate paths relative to this file and insert them.
+    _this = Path(__file__).resolve()
+    _dir = _this.parent
+    cand = _dir / 'yar2sig'
+    if cand.is_dir():
+        sys.path.insert(0, str(_dir))
+        sys.path.insert(0, str(cand))
+        from yar2sig import available_pipelines, load_mapping
+        from yar2sig.parsers import parse_yara_rule
+        from yar2sig.emitters import emit_sigma
+    else:
+        # Reraise the original error if the package still isn't found
+        raise
 
 app = Flask(__name__)
 
