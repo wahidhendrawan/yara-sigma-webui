@@ -29,6 +29,23 @@ from pathlib import Path
 # resolution will succeed.
 _this_file = Path(__file__).resolve()
 _base = _this_file.parent
+# -------------------------------------------------------------------------
+# Prefer a local yar2sig directory relative to this file.  If the app is
+# executed from its repository checkout, the yar2sig package will live
+# alongside app.py.  Insert both the base directory and the package
+# directory onto sys.path so Python can locate it.  When the app is
+# installed normally (e.g. via pip) this block has no effect, and the
+# standard site-packages resolution will apply.
+if (_base / 'yar2sig').is_dir():
+    sys.path.insert(0, str(_base))
+    sys.path.insert(0, str(_base / 'yar2sig'))
+
+# If the package isn't found immediately next to this file, search up
+# through parent directories for a yar2sig folder.  This supports cases
+# where the web UI is installed into a deeper directory (e.g. /opt).  The
+# first matching parent directory is added to sys.path along with the
+# package directory.  When the package has been installed via pip, this
+# loop will exit without modification.
 for parent in [_base] + list(_base.parents):
     candidate = parent / 'yar2sig'
     if candidate.is_dir():
