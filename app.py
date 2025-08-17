@@ -10,21 +10,6 @@ from flask import Flask, render_template, request, make_response
 
 app = Flask(__name__)
 
-# Mapping of supported back‑ends to their default field names.  These fields are
-# used when building simple search queries.  The values here are based on
-# documentation for each platform.  For Elastic Stack log analytics, the
-# `message` field is commonly configured as the default search field in index
-# templates【317439525268298†L54-L70】.  Splunk stores raw event text in the `_raw`
-# field, which can be searched directly【740609531216668†L119-L126】.  VMware
-# Carbon Black EDR exposes a `process_cmdline` field for command line tokens
-#【65182726867215†L2289-L2301】.  Microsoft Defender for Endpoint logs process creation
-# data in the `ProcessCommandLine` column【639728264160586†L69-L100】.  LogRhythm
-# uses the `logMessage` field for the unstructured text of a log message【115726418008263†L51-L56】.
-# IBM QRadar searches the event payload using a `payload contains` filter【380954259433922†L175-L181】,
-# so the default field is treated as `payload`.  SentinelOne's Deep Visibility
-# events include a `sourceprocesscommandline` attribute that contains the full
-# command line of the process【999746654051079†L1298-L1327】.  Additional back‑ends can
-# be added here as needed.
 BACKENDS: Dict[str, str] = {
     "Elastic Stack": "message",
     "Splunk": "_raw",
