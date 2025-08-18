@@ -65,7 +65,7 @@ for parent in [_base] + list(_base.parents):
 # is available (for example via a pip installation), the import below will
 # override these fallback definitions.
 try:
-    from yar2sig import available_pipelines, load_mapping  # type: ignore
+    #3from yar2sig import available_pipelines, load_mapping  # type: ignore
     from yar2sig.parsers import parse_yara_rule  # type: ignore
     from yar2sig.emitters import emit_sigma  # type: ignore
 except ModuleNotFoundError:
