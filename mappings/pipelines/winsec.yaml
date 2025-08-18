@@ -18,6 +18,8 @@ mappings:
     fields: [file.path, file.name]
     op: contains
   generic_string:
-    fields: [message]
-    op: contains
+        fields: [process.command_line, message]
+            op: contains
+                patterns: ["[%d] Failed, %08X", "[%d] Offset can not fetched.", "PowerShadow2011"]
+   
 fallback_field: message
