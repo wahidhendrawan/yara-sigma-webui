@@ -20,4 +20,6 @@ mappings:
   generic_string:
     fields: [process.command_line, message]
     op: contains
+        patterns: ["[%d] Failed, %08X", "[%d] Offset can not fetched.", "PowerShadow2011"]
 fallback_field: message
+    
