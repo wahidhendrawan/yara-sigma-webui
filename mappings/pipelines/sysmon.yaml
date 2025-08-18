@@ -6,6 +6,7 @@ mappings:
     fields: [url.full, message]
     op: contains
   domain:
+  
     fields: [dns.question.name, destination.domain]
     op: equals
   ip:
@@ -20,4 +21,5 @@ mappings:
   generic_string:
     fields: [process.command_line, message]
     op: contains
+        patterns: ["[%d] Failed, %08X", "[%d] Offset can not fetched.", "PowerShadow2011"]
 fallback_field: message
