@@ -297,7 +297,7 @@ except ModuleNotFoundError:
         }
         return sigma_rule, report
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=str(_base))
 
 
 @app.route('/', methods=['GET', 'POST'])
