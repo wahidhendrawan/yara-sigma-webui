@@ -1,23 +1,51 @@
 logsource:
   product: windows
   service: sysmon
+
 mappings:
   url:
-    fields: [url.full, message]
+    fields:
+      - url.full
+      - message
     op: contains
+
   domain:
-  
-    fields: [dns.question.name, destination.domain]
+    fields:
+      - dns.question.name
+      - destination.domain
     op: equals
+
   ip:
-    fields: [destination.ip]
+    fields:
+      - destination.ip
     op: equals
+
   hash:
-    fields: [file.hash.sha256, process.hash.sha256, file.hash.md5, process.hash.md5]
+    fields:
+      - file.hash.sha256
+      - process.hash.sha256
+      - file.hash.md5
+      - process.hash.md5
     op: equals
+
   path_or_filename:
-    fields: [file.path, file.name, process.executable, process.command_line]
+    fields:
+      - file.path
+      - file.name
+      - process.executable
+      - process.command_line
     op: contains
+
+  # Tambahan agar pola *.pdb dipetakan sebagai file, bukan domain
+  pdb_extension:
+    fields:
+      - file.name
+      - file.path
+      - process.command_line
+    op: endswith
+    patterns:
+      - ".pdb"
+
 generic_string:
   fields:
     - process.command_line
@@ -27,4 +55,5 @@ generic_string:
     - "[%d] Failed, %08X"
     - "[%d] Offset can not fetched."
     - "PowerShadow2011"
+
 fallback_field: message
