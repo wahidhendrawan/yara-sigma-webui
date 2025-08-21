@@ -2,7 +2,7 @@
 
 This module contains functions that take a parsed YARA rule and a
 mapping specification and produce a Sigma rule.  A small
-heuristics‑based engine classifies each plain text string extracted
+heuristics-based engine classifies each plain text string extracted
 from the YARA rule into an indicator type (URL, domain, IP, hash,
 path/filename or generic) and then looks up the appropriate Sigma
 field and operator from the mapping specification.  Where no mapping
@@ -11,7 +11,7 @@ applies, a fallback field is used.
 The emitter also returns a conversion report detailing the mapping
 decisions.  This report can be surfaced to users of the CLI or web
 UI so they understand which parts of the original YARA rule were
-applied and where manual follow‑up may be required.
+applied and where manual follow-up may be required.
 """
 
 from __future__ import annotations
@@ -19,8 +19,41 @@ from __future__ import annotations
 from typing import Dict, Any, Tuple, List
 import uuid
 import datetime
+import re   # tambahan
 
 from ..extractors import classify_pattern
+
+FILE_EXTS = {
+    ".pdb", ".exe", ".dll", ".sys", ".ocx", ".scr",
+    ".dat", ".bin", ".tmp", ".cmd", ".bat", ".ps1",
+    ".vbs", ".js", ".jar", ".com"
+}
+
+
+def looks_like_filename(s: str) -> bool:
+    """
+    Return True jika string tampak seperti nama file/path.
+    Digunakan untuk override classifier yang salah anggap domain.
+    """
+    if not s:
+        return False
+    t = s.strip().strip('"').strip("'")
+    lo = t.lower()
+    # Jangan anggap URL sebagai file
+    if lo.startswith(("http://", "https://")):
+        return False
+    # Mengandung slash/backslash → path
+    if "/" in t or "\\" in t:
+        return True
+    # Berakhir dengan ekstensi file umum
+    for ext in FILE_EXTS:
+        if lo.endswith(ext):
+            return True
+    # Pola nama.ext (mis. evict1.pdb)
+    if re.match(r"^[A-Za-z0-9_\-\.]+\.[A-Za-z0-9]{2,4}$", t):
+        return True
+    return False
+
 
 def _select_field(mapping: dict, indicator_type: str) -> Tuple[str, str]:
     """Select the field and operator for a given indicator type.
@@ -83,6 +116,10 @@ def emit_sigma(parsed: Dict[str, Any], mapping: dict) -> Tuple[Dict[str, Any], L
     # Build selections for each pattern
     for idx, pattern in enumerate(patterns):
         indicator_type = classify_pattern(pattern)
+        # Override jika terlihat seperti file tapi dikira domain/url/generic
+        if looks_like_filename(pattern) and indicator_type in ("domain", "url", "generic"):
+            indicator_type = "path_or_filename"
+
         field, op = _select_field(mapping, indicator_type)
         sel_name = f'sel{idx + 1}'
         if op == 'contains':
@@ -92,7 +129,9 @@ def emit_sigma(parsed: Dict[str, Any], mapping: dict) -> Tuple[Dict[str, Any], L
         detection[sel_name] = {key: pattern}
         selection_names.append(sel_name)
         # Record in report
-        report.append(f"Pattern '{pattern}' classified as {indicator_type} mapped to field '{field}' using operator '{op}'")
+        report.append(
+            f"Pattern '{pattern}' classified as {indicator_type} mapped to field '{field}' using operator '{op}'"
+        )
 
     # Build condition string
     if selection_names:
