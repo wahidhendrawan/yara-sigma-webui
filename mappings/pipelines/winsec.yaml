@@ -3,6 +3,25 @@ logsource:
   service: security
 
 mappings:
+  pdb_exact:
+    fields:
+      - file.name
+      - file.path
+      - process.command_line
+    op: equals
+    patterns:
+      - "evict1.pdb"
+      - "EVICT1.PDB"
+
+  pdb_suffix:
+    fields:
+      - file.name
+      - file.path
+      - process.command_line
+    op: contains
+    patterns:
+      - ".pdb"
+
   url:
     fields:
       - url.full
@@ -31,15 +50,6 @@ mappings:
       - file.name
       - process.command_line
     op: contains
-
-  pdb_extension:
-    fields:
-      - file.name
-      - file.path
-      - process.command_line
-    op: endswith
-    patterns:
-      - ".pdb"
 
 generic_string:
   fields:
