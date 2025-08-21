@@ -36,7 +36,6 @@ mappings:
       - process.command_line
     op: contains
 
-  # Tambahan agar pola *.pdb dipetakan sebagai file, bukan domain
   pdb_extension:
     fields:
       - file.name
