@@ -28,3 +28,6 @@ packages = ["yar2sig"]
 
 [tool.setuptools.package-data]
 yar2sig = ["mappings/*.yaml"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
