@@ -2,14 +2,23 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
+[![Docker](https://img.shields.io/badge/docker-compose%20ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
+[![Backends](https://img.shields.io/badge/SIEM%2FEDR%20backends-7-6366f1)](#-supported-backends)
 [![Tests](https://img.shields.io/badge/tests-6%20passing-brightgreen)](tests/)
+[![Version](https://img.shields.io/badge/version-3.0.0-informational)](pyproject.toml)
 
 Convert **YARA rules** into **Sigma rules** and **native SIEM/EDR queries** —
 with automatic IOC classification, MITRE ATT&CK tagging, configurable mapping
-pipelines, a clean CLI, and a modern web UI.
+pipelines, a clean CLI, and a modern web UI. Ships **Docker-Compose-ready** with
+gunicorn and `sigma-cli` bundled for native conversion out of the box.
+
+```bash
+docker compose up -d --build   # → http://127.0.0.1:8000
+```
 
 > This is the **consolidated v3** release. It merges the simplicity of v1 and
-> the modular architecture of v2 into a single, working, tested package.
+> the modular architecture of v2 into a single, working, tested, containerized
+> package.
 
 ---
 
@@ -36,6 +45,9 @@ pipelines, a clean CLI, and a modern web UI.
   copy & download buttons, built-in sample rules, `Ctrl+Enter` to convert.
 - **CLI** — convert single files or whole directories; list pipelines; generate
   backend queries.
+- **Docker-Compose-ready** — hardened container (non-root, read-only FS,
+  dropped capabilities, resource limits) running gunicorn, with `sigma-cli`
+  and backend plugins baked in.
 
 ---
 
