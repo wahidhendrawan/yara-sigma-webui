@@ -41,13 +41,29 @@ pipelines, a clean CLI, and a modern web UI.
 
 ## 📦 Installation
 
+### 🐳 Docker (recommended)
+
+The image bundles **gunicorn** (production WSGI) and **sigma-cli** + backend
+plugins, so native query conversion works out of the box.
+
+```bash
+docker compose up -d --build
+# open http://127.0.0.1:8000
+```
+
+Change the port with `PORT=9000 docker compose up -d`. Stop with
+`docker compose down`. Health: `curl localhost:8000/healthz`.
+
+The container is hardened: non-root user, read-only root FS, dropped Linux
+capabilities, `no-new-privileges`, and CPU/memory limits (1 CPU / 256 MB).
+
+### 🐍 Local (Python)
+
 ```bash
 git clone https://github.com/wahidhendrawan/yara-sigma-webui.git
 cd yara-sigma-webui
-pip install -r requirements.txt          # Flask + PyYAML
-
-# Optional: native backend conversion
-pip install sigma-cli
+pip install -r requirements.txt
+python app.py            # dev server on http://127.0.0.1:5000
 ```
 
 Or install as a package (gives you the `yar2sig` command):
@@ -61,8 +77,9 @@ pip install -e .
 ## 🖥️ Web UI
 
 ```bash
-python app.py
-# open http://127.0.0.1:5000
+docker compose up -d --build   # http://127.0.0.1:8000  (recommended)
+# or, for local dev:
+python app.py                  # http://127.0.0.1:5000
 ```
 
 Paste a YARA rule, pick a **pipeline** and a **backend**, hit **Convert**

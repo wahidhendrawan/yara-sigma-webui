@@ -1,4 +1,8 @@
 Flask>=3.0
 PyYAML>=6.0.1
-# Optional: install for native backend conversion
-# sigma-cli>=1.0
+gunicorn>=23.0
+# Native backend conversion (bundled in the Docker image)
+sigma-cli>=1.0
+pysigma-backend-elasticsearch>=1.1
+pysigma-backend-splunk>=1.1
+pysigma-backend-qradar-aql>=0.3

@@ -30,6 +30,11 @@ def index():
     )
 
 
+@app.route("/healthz")
+def healthz():
+    return jsonify(status="ok", pipelines=available_pipelines())
+
+
 @app.route("/api/convert", methods=["POST"])
 def api_convert():
     data = request.get_json(silent=True) or {}
