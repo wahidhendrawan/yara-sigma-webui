@@ -71,3 +71,31 @@ def test_query_fallback():
     rule, _ = convert(BASIC, "sysmon")
     q = generate_query("splunk", rule, parsed["strings"])
     assert q  # non-empty
+
+
+def test_convert_all_multi():
+    from yar2sig import convert_all
+    text = BASIC + "\nrule Second {\n strings:\n  $a=\"x\"\n condition:\n  $a\n}\n"
+    results = convert_all(text, "sysmon")
+    assert len(results) == 2
+    names = [r["title"] for r, _ in results]
+    assert "Second" in names or any("Second" in str(n) for n in names)
+
+
+def test_confidence_in_report():
+    _, report = convert(BASIC, "sysmon")
+    assert report[0].startswith("Conversion confidence:")
+    # BASIC has only text patterns -> high confidence
+    import re as _re
+    score = int(_re.search(r"(\d+)", report[0]).group(1))
+    assert score >= 80
+
+
+def test_confidence_low_for_hex():
+    hexrule = (
+        'rule H {\n strings:\n  $h = { 4D 5A 90 00 }\n'
+        ' condition:\n  $h\n}\n'
+    )
+    _, report = convert(hexrule, "sysmon")
+    score = int(__import__("re").search(r"(\d+)", report[0]).group(1))
+    assert score <= 80

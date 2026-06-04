@@ -35,6 +35,29 @@ def _mitre_tags(meta: dict) -> list[str]:
     return tags
 
 
+def _confidence(parsed: dict, ptypes: list[str]) -> tuple[int, str]:
+    """Score conversion fidelity 0-100 based on pattern types & count.
+
+    Text/IOC patterns convert cleanly; hex/regex lose fidelity because
+    Sigma can't match raw bytes the way YARA does.
+    """
+    n = len(parsed.get("strings", []))
+    if n == 0:
+        return 0, "No string patterns extracted — Sigma rule is a stub."
+    hex_or_regex = sum(1 for t in ptypes if t in ("hex", "regex"))
+    clean = n - hex_or_regex
+    score = int(round(100 * clean / n))
+    if hex_or_regex:
+        score = min(score, 80)  # cap when lossy patterns present
+    if score >= 80:
+        note = "High — text/IOC patterns map cleanly to Sigma fields."
+    elif score >= 50:
+        note = "Medium — some hex/regex patterns lose fidelity; review fields."
+    else:
+        note = "Low — mostly hex/regex; Sigma cannot match raw bytes. Manual review required."
+    return score, note
+
+
 def emit_sigma(parsed: dict[str, Any], mapping: dict) -> tuple[dict[str, Any], list[str]]:
     """Return (sigma_rule_dict, report)."""
     meta = parsed.get("meta", {})
@@ -42,6 +65,8 @@ def emit_sigma(parsed: dict[str, Any], mapping: dict) -> tuple[dict[str, Any], l
     ptypes = parsed.get("string_types", ["text"] * len(patterns))
     cond_type = parsed.get("cond_type", "any")
     report: list[str] = []
+
+    score, conf_note = _confidence(parsed, ptypes)
 
     detection: dict[str, Any] = {}
     sel_names: list[str] = []
@@ -92,4 +117,5 @@ def emit_sigma(parsed: dict[str, Any], mapping: dict) -> tuple[dict[str, Any], l
         "falsepositives": ["Unknown - review generated rule before deployment."],
         "level": meta.get("level", "medium"),
     }
+    report.insert(0, f"Conversion confidence: {score}/100 — {conf_note}")
     return rule, report

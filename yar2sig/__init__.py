@@ -40,14 +40,31 @@ def load_mapping(name: str) -> dict[str, Any]:
 
 
 def convert(text: str, pipeline: str = "sysmon") -> tuple[dict[str, Any], list[str]]:
-    """Convenience: parse YARA text and emit a Sigma rule via *pipeline*."""
+    """Convenience: parse YARA text and emit a Sigma rule via *pipeline*.
+
+    Converts only the FIRST rule in *text*. Use :func:`convert_all` for
+    files containing multiple YARA rules.
+    """
     parsed = parse_yara_rule(text)
     mapping = load_mapping(pipeline)
     return emit_sigma(parsed, mapping)
 
 
+def convert_all(text: str, pipeline: str = "sysmon") -> list[tuple[dict[str, Any], list[str]]]:
+    """Convert EVERY YARA rule found in *text* into a Sigma rule.
+
+    Returns a list of ``(sigma_rule, report)`` tuples — one per YARA rule.
+    """
+    mapping = load_mapping(pipeline)
+    results: list[tuple[dict[str, Any], list[str]]] = []
+    for block in split_rules(text):
+        parsed = parse_yara_rule(block)
+        results.append(emit_sigma(parsed, mapping))
+    return results
+
+
 __all__ = [
     "parse_yara_rule", "split_rules", "classify_pattern", "emit_sigma",
-    "available_pipelines", "load_mapping", "convert",
+    "available_pipelines", "load_mapping", "convert", "convert_all",
     "generate_query", "BACKENDS", "__version__",
 ]

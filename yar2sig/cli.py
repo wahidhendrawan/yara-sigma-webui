@@ -19,6 +19,7 @@ from . import (
     BACKENDS,
     available_pipelines,
     convert,
+    convert_all,
     generate_query,
     load_mapping,
 )
@@ -38,17 +39,21 @@ def _convert(args: argparse.Namespace) -> int:
         outdir.mkdir(parents=True, exist_ok=True)
 
     for f in files:
-        rule, report = convert(f.read_text(encoding="utf-8"), args.pipeline)
-        text = yaml.safe_dump(rule, sort_keys=False, allow_unicode=True)
-        if outdir:
-            dest = outdir / f"{f.stem}.yml"
-            dest.write_text(text, encoding="utf-8")
-            print(f"[+] {f.name} -> {dest}")
-        else:
-            print(text)
-        if args.verbose:
-            for line in report:
-                print(f"    # {line}", file=sys.stderr)
+        results = convert_all(f.read_text(encoding="utf-8"), args.pipeline)
+        for i, (rule, report) in enumerate(results):
+            text = yaml.safe_dump(rule, sort_keys=False, allow_unicode=True)
+            if outdir:
+                suffix = f"_{i + 1}" if len(results) > 1 else ""
+                dest = outdir / f"{f.stem}{suffix}.yml"
+                dest.write_text(text, encoding="utf-8")
+                print(f"[+] {f.name} [{rule['title']}] -> {dest}")
+            else:
+                if i:
+                    print("---")
+                print(text)
+            if args.verbose:
+                for line in report:
+                    print(f"    # {line}", file=sys.stderr)
     return 0
 
 

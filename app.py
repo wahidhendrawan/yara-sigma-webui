@@ -6,6 +6,8 @@ rule (YAML), conversion report, and native queries for all backends.
 
 from __future__ import annotations
 
+import re
+
 import yaml
 from flask import Flask, jsonify, render_template, request
 
@@ -16,7 +18,7 @@ from yar2sig import (
     load_mapping,
 )
 from yar2sig.emitter import emit_sigma
-from yar2sig.parser import parse_yara_rule
+from yar2sig.parser import parse_yara_rule, split_rules
 
 app = Flask(__name__)
 
@@ -44,20 +46,28 @@ def api_convert():
     if not text:
         return jsonify(error="No YARA rule provided"), 400
     try:
-        parsed = parse_yara_rule(text)
-        rule, report = emit_sigma(parsed, load_mapping(pipeline))
-        sigma_yaml = yaml.safe_dump(rule, sort_keys=False, allow_unicode=True)
-        query = generate_query(backend, rule, parsed.get("strings", []))
-        return jsonify(
-            sigma=sigma_yaml,
-            report=report,
-            query=query,
-            parsed={
+        blocks = split_rules(text)
+        rules_out = []
+        for block in blocks:
+            parsed = parse_yara_rule(block)
+            rule, report = emit_sigma(parsed, load_mapping(pipeline))
+            sigma_yaml = yaml.safe_dump(rule, sort_keys=False, allow_unicode=True)
+            query = generate_query(backend, rule, parsed.get("strings", []))
+            # confidence is report[0] -> "Conversion confidence: N/100 — ..."
+            conf = 0
+            m = re.search(r"confidence:\s*(\d+)", report[0]) if report else None
+            if m:
+                conf = int(m.group(1))
+            rules_out.append({
                 "name": parsed["name"],
                 "patterns": len(parsed.get("strings", [])),
                 "tags": rule.get("tags", []),
-            },
-        )
+                "confidence": conf,
+                "sigma": sigma_yaml,
+                "report": report,
+                "query": query,
+            })
+        return jsonify(count=len(rules_out), rules=rules_out)
     except Exception as exc:  # noqa: BLE001
         return jsonify(error=str(exc)), 500
 
