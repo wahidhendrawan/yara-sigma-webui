@@ -1,0 +1,25 @@
+logsource:
+  category: proxy
+fallback_field: c-uri
+mappings:
+  url:
+    fields: [c-uri]
+    op: contains
+  domain:
+    fields: [c-uri-extension, cs-host, dst_host]
+    op: contains
+  ip:
+    fields: [dst_ip]
+    op: equals
+  hash:
+    fields: [c-uri]
+    op: contains
+  email:
+    fields: [c-uri-query]
+    op: contains
+  path_or_filename:
+    fields: [c-uri-stem]
+    op: contains
+  generic:
+    fields: [c-uri, c-useragent]
+    op: contains

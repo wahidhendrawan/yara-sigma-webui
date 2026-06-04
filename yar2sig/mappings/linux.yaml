@@ -1,0 +1,26 @@
+logsource:
+  product: linux
+  category: process_creation
+fallback_field: CommandLine
+mappings:
+  url:
+    fields: [CommandLine]
+    op: contains
+  domain:
+    fields: [CommandLine]
+    op: contains
+  ip:
+    fields: [DestinationIp]
+    op: equals
+  hash:
+    fields: [CommandLine]
+    op: contains
+  email:
+    fields: [CommandLine]
+    op: contains
+  path_or_filename:
+    fields: [Image, CommandLine]
+    op: contains
+  generic:
+    fields: [CommandLine]
+    op: contains

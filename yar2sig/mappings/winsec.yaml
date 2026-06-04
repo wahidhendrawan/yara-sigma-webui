@@ -1,0 +1,32 @@
+logsource:
+  product: windows
+  service: security
+fallback_field: ProcessName
+mappings:
+  url:
+    fields: [ProcessCommandLine]
+    op: contains
+  domain:
+    fields: [ProcessCommandLine]
+    op: contains
+  ip:
+    fields: [IpAddress]
+    op: equals
+  hash:
+    fields: [ProcessCommandLine]
+    op: contains
+  email:
+    fields: [ProcessCommandLine]
+    op: contains
+  registry:
+    fields: [ObjectName]
+    op: contains
+  mutex:
+    fields: [ProcessCommandLine]
+    op: contains
+  path_or_filename:
+    fields: [NewProcessName, ProcessName, ProcessCommandLine]
+    op: contains
+  generic:
+    fields: [ProcessCommandLine]
+    op: contains

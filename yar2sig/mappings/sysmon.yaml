@@ -1,0 +1,32 @@
+logsource:
+  product: windows
+  service: sysmon
+fallback_field: Image
+mappings:
+  url:
+    fields: [Image, CommandLine]
+    op: contains
+  domain:
+    fields: [QueryName, DestinationHostname]
+    op: contains
+  ip:
+    fields: [DestinationIp]
+    op: equals
+  hash:
+    fields: [Hashes, Imphash]
+    op: contains
+  email:
+    fields: [CommandLine]
+    op: contains
+  registry:
+    fields: [TargetObject]
+    op: contains
+  mutex:
+    fields: [CommandLine]
+    op: contains
+  path_or_filename:
+    fields: [Image, TargetFilename, CommandLine]
+    op: contains
+  generic:
+    fields: [CommandLine]
+    op: contains

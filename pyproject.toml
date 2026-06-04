@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yar2sig"
+version = "3.0.0"
+description = "Convert YARA rules to Sigma rules and native SIEM/EDR queries"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [{name = "Wahid Hendrawan"}]
+keywords = ["yara", "sigma", "siem", "detection-engineering", "conversion"]
+dependencies = ["PyYAML>=6.0.1"]
+
+[project.optional-dependencies]
+web = ["Flask>=3.0"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+yar2sig = "yar2sig.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/wahidhendrawan/yara-sigma-webui"
+
+[tool.setuptools]
+packages = ["yar2sig"]
+
+[tool.setuptools.package-data]
+yar2sig = ["mappings/*.yaml"]

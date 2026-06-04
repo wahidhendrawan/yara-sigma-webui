@@ -1,0 +1,4 @@
+Flask>=3.0
+PyYAML>=6.0.1
+# Optional: install for native backend conversion
+# sigma-cli>=1.0
