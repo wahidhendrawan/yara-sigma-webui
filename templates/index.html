@@ -32,7 +32,7 @@ button{cursor:pointer}
 .panelHead{height:42px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 12px;gap:10px;background:linear-gradient(180deg,#fff,#fafbfc)}
 .panelTitle{font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#364150}
 .counter{font-size:.76rem;color:var(--muted);white-space:nowrap}
-.toolbar{padding:10px 12px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto auto;gap:8px;background:var(--surface2)}
+.toolbar{padding:10px 12px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;background:var(--surface2)}
 select,.btn{height:34px;border:1px solid var(--line2);border-radius:7px;background:#fff;color:var(--ink);padding:0 9px;font-size:.84rem}
 select:focus,.btn:focus,textarea:focus{outline:2px solid rgba(36,84,214,.22);outline-offset:1px}
 .btn{font-weight:750;white-space:nowrap}
@@ -66,7 +66,7 @@ textarea{width:100%;min-height:0;height:100%;resize:none;border:1px solid var(--
   .workspace{height:auto;min-height:calc(100dvh - 64px);grid-template-columns:1fr;padding:12px}
   .panel{min-height:460px}
   .panel:first-child{min-height:560px}
-  .toolbar{grid-template-columns:1fr 1fr auto auto}
+  .toolbar{grid-template-columns:1fr auto auto}
   .summary{grid-template-columns:1fr 1fr}
 }
 @media(min-width:1281px){
@@ -93,7 +93,7 @@ textarea{width:100%;min-height:0;height:100%;resize:none;border:1px solid var(--
       <div class="mark"></div>
       <div>
         <h1>YARA Sigma Studio</h1>
-        <p>Convert YARA rules into Sigma and backend queries</p>
+        <p>Convert YARA rules into Sigma detections</p>
       </div>
     </div>
     <div class="status" id="status">
@@ -110,9 +110,6 @@ textarea{width:100%;min-height:0;height:100%;resize:none;border:1px solid var(--
       <div class="toolbar">
         <select id="pipeline" title="Mapping pipeline">
           {% for p in pipelines %}<option value="{{p}}">{{p}}</option>{% endfor %}
-        </select>
-        <select id="backend" title="SIEM backend">
-          {% for k,v in backends.items() %}<option value="{{k}}">{{v}}</option>{% endfor %}
         </select>
         <button class="btn" type="button" onclick="pickFile()">Import .yar</button>
         <button class="btn primary" id="convertBtn" onclick="doConvert()">Convert</button>
@@ -136,7 +133,6 @@ textarea{width:100%;min-height:0;height:100%;resize:none;border:1px solid var(--
     <section class="panel">
       <div class="resultTabs">
         <button class="tab active" data-tab="sigma" onclick="switchTab('sigma')">Sigma</button>
-        <button class="tab" data-tab="query" onclick="switchTab('query')">Query</button>
         <button class="tab" data-tab="report" onclick="switchTab('report')">Report</button>
         <div class="actions">
           <button class="btn" id="copyBtn" onclick="copyOut()">Copy</button>
@@ -152,7 +148,6 @@ textarea{width:100%;min-height:0;height:100%;resize:none;border:1px solid var(--
       <div class="outputWrap">
         <div class="err" id="err"></div>
         <pre class="out" id="out-sigma">Conversion output will appear here.</pre>
-        <pre class="out hidden" id="out-query"></pre>
         <ul class="out report hidden" id="out-report"></ul>
       </div>
     </section>
@@ -180,7 +175,7 @@ function loadSample(key){
 function switchTab(tab){
   current = tab;
   document.querySelectorAll('.tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
-  ['sigma','query','report'].forEach(name => document.getElementById('out-' + name).classList.toggle('hidden', name !== tab));
+  ['sigma','report'].forEach(name => document.getElementById('out-' + name).classList.toggle('hidden', name !== tab));
 }
 function updateStatus(quality){
   const status = document.getElementById('status');
@@ -216,7 +211,6 @@ function loadFile(file){
 async function doConvert(){
   const rule = document.getElementById('rule').value;
   const pipeline = document.getElementById('pipeline').value;
-  const backend = document.getElementById('backend').value;
   const err = document.getElementById('err');
   const btn = document.getElementById('convertBtn');
   err.style.display = 'none';
@@ -230,13 +224,12 @@ async function doConvert(){
     const response = await fetch('/api/convert', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({rule, pipeline, backend})
+      body: JSON.stringify({rule, pipeline})
     });
     const data = await response.json();
     if(!response.ok) throw new Error(data.error || 'Conversion failed');
     lastSigma = data.sigma;
     document.getElementById('out-sigma').textContent = data.sigma;
-    document.getElementById('out-query').textContent = data.query;
     document.getElementById('out-report').innerHTML = data.report.map(item => `<li>${esc(item)}</li>`).join('');
     document.getElementById('metricConfidence').textContent = `${data.quality.confidence || '-'} ${data.quality.confidence_score ?? ''}`.trim();
     document.getElementById('metricPatterns').textContent = data.parsed.patterns;

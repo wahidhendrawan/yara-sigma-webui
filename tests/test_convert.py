@@ -134,17 +134,20 @@ def test_query_fallback_escapes_special_characters(monkeypatch):
     assert r'evil\"quoted\\path' in query
 
 
-def test_api_validates_backend():
+def test_api_ignores_backend_for_sigma_only_web_flow():
     client = app.test_client()
     response = client.post("/api/convert", json={"rule": BASIC, "backend": "missing"})
-    assert response.status_code == 400
-    assert response.get_json()["error"] == "Unknown backend"
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert "sigma" in payload
+    assert "query" not in payload
 
 
 def test_api_returns_quality():
     client = app.test_client()
-    response = client.post("/api/convert", json={"rule": BASIC, "pipeline": "sysmon", "backend": "splunk"})
+    response = client.post("/api/convert", json={"rule": BASIC, "pipeline": "sysmon"})
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["quality"]["confidence"] in {"high", "medium", "low"}
     assert payload["parsed"]["patterns"] == 4
+    assert "query" not in payload
