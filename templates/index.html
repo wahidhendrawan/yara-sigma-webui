@@ -3,124 +3,153 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YARA to Sigma Workbench</title>
+<title>YARA Sigma Studio</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0f1115;--panel:#171a21;--panel2:#20242d;--ink:#f4f0e8;--muted:#a8a29a;
-  --line:#313640;--accent:#d78b30;--accent2:#3aa98f;--bad:#e05f5f;--warn:#d6aa3d;--good:#54b876;
+  --bg:#eef1f4;--surface:#ffffff;--surface2:#f7f8fa;--ink:#18202a;--muted:#687282;
+  --line:#d7dde5;--line2:#c5ced8;--code:#101822;--code2:#0b1119;--codeText:#d8e0ea;
+  --blue:#2454d6;--blue2:#163b9a;--green:#0f8b6f;--amber:#b7791f;--red:#c0392b;
+  --shadow:0 16px 48px rgba(24,32,42,.10);
 }
-body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:linear-gradient(135deg,#0f1115 0%,#14161b 52%,#101816 100%);color:var(--ink);line-height:1.45}
+html,body{height:100%}
+body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);line-height:1.45}
 button,select,textarea{font:inherit}
 button{cursor:pointer}
-.top{border-bottom:1px solid var(--line);padding:18px 22px;display:flex;justify-content:space-between;gap:16px;align-items:center}
-.brand h1{font-size:1.15rem;font-weight:800;letter-spacing:0}
-.brand p{color:var(--muted);font-size:.82rem;margin-top:2px}
-.status{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.pill{border:1px solid var(--line);background:rgba(255,255,255,.03);border-radius:999px;padding:5px 9px;color:var(--muted);font-size:.75rem}
-.pill.good{color:var(--good);border-color:rgba(84,184,118,.35)}
-.pill.warn{color:var(--warn);border-color:rgba(214,170,61,.35)}
-.pill.bad{color:var(--bad);border-color:rgba(224,95,95,.35)}
-.shell{height:calc(100vh - 75px);display:grid;grid-template-columns:minmax(360px,42%) 1fr}
-.pane{min-width:0;padding:18px;border-right:1px solid var(--line);overflow:auto}
-.pane:last-child{border-right:0}
-.label{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
-textarea{width:100%;height:calc(100vh - 230px);min-height:360px;background:#0b0d11;color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:14px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.84rem;resize:vertical;line-height:1.5}
-textarea:focus,select:focus{outline:1px solid var(--accent)}
-.controls{display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;margin:12px 0}
-select,.btn{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:9px 11px}
-.btn{font-weight:700}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#17100a}
+.app{min-height:100vh;display:grid;grid-template-rows:auto 1fr}
+.top{height:64px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 22px;gap:18px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.mark{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,var(--blue),var(--green));box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+.brand h1{font-size:1rem;font-weight:800;letter-spacing:0}
+.brand p{font-size:.76rem;color:var(--muted)}
+.status{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.pill{border:1px solid var(--line);background:var(--surface2);border-radius:999px;padding:5px 9px;color:var(--muted);font-size:.74rem;white-space:nowrap}
+.pill.good{color:var(--green);border-color:rgba(15,139,111,.28);background:rgba(15,139,111,.06)}
+.pill.warn{color:var(--amber);border-color:rgba(183,121,31,.28);background:rgba(183,121,31,.07)}
+.pill.bad{color:var(--red);border-color:rgba(192,57,43,.26);background:rgba(192,57,43,.06)}
+.workspace{height:calc(100vh - 64px);padding:18px;display:grid;grid-template-columns:minmax(360px,40%) minmax(0,1fr);gap:18px}
+.panel{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
+.panelHead{height:48px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 14px;gap:12px;background:linear-gradient(180deg,#fff,#fafbfc)}
+.panelTitle{font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#364150}
+.counter{font-size:.76rem;color:var(--muted);white-space:nowrap}
+.toolbar{padding:12px 14px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;background:var(--surface2)}
+select,.btn{height:36px;border:1px solid var(--line2);border-radius:7px;background:#fff;color:var(--ink);padding:0 10px}
+select:focus,.btn:focus,textarea:focus{outline:2px solid rgba(36,84,214,.22);outline-offset:1px}
+.btn{font-weight:750;white-space:nowrap}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.primary:hover{background:var(--blue2)}
 .btn:disabled{opacity:.55;cursor:not-allowed}
-.dropzone{margin-top:12px;border:1px dashed rgba(215,139,48,.55);border-radius:7px;background:rgba(215,139,48,.06);padding:12px;color:var(--muted);font-size:.82rem;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.sourceWrap{padding:14px;display:grid;grid-template-rows:auto 1fr auto;gap:12px;min-height:0;flex:1}
+.dropzone{border:1px dashed var(--line2);border-radius:8px;background:#fbfcfd;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:.82rem}
 .dropzone strong{color:var(--ink);font-size:.84rem}
-.dropzone.drag{border-color:var(--accent2);background:rgba(58,169,143,.08)}
+.dropzone.drag{border-color:var(--blue);background:rgba(36,84,214,.05)}
+textarea{width:100%;min-height:0;height:100%;resize:none;border:1px solid var(--line);border-radius:8px;background:var(--code);color:var(--codeText);padding:14px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.84rem;line-height:1.55;tab-size:2}
 .samples{display:flex;gap:7px;flex-wrap:wrap}
-.sample{font-size:.76rem;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:999px;padding:5px 9px}
-.tabs{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--line);margin-bottom:12px}
-.tab{background:transparent;border:0;color:var(--muted);padding:9px 12px;border-bottom:2px solid transparent}
-.tab.active{color:var(--ink);border-color:var(--accent2)}
-.actions{margin-left:auto;display:flex;gap:8px;padding-bottom:6px}
-.out{background:#0b0d11;border:1px solid var(--line);border-radius:7px;padding:14px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.82rem;white-space:pre-wrap;word-break:break-word;min-height:calc(100vh - 250px);max-height:calc(100vh - 250px);overflow:auto}
+.sample{border:1px solid var(--line);background:var(--surface2);color:#445164;border-radius:999px;padding:6px 10px;font-size:.76rem;font-weight:650}
+.resultTabs{height:48px;display:flex;align-items:center;gap:4px;padding:0 10px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#fff,#fafbfc)}
+.tab{height:34px;border:0;background:transparent;border-radius:7px;color:var(--muted);padding:0 12px;font-weight:760}
+.tab.active{background:#eaf0ff;color:var(--blue)}
+.actions{margin-left:auto;display:flex;gap:8px}
+.summary{padding:12px 14px;display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:8px;border-bottom:1px solid var(--line);background:var(--surface2)}
+.metric{border:1px solid var(--line);border-radius:8px;background:#fff;padding:9px 10px;min-width:0}
+.metric span{display:block;color:var(--muted);font-size:.67rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
+.metric strong{display:block;margin-top:3px;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.outputWrap{padding:14px;min-height:0;flex:1;display:flex;flex-direction:column}
+.err{display:none;margin-bottom:12px;border:1px solid rgba(192,57,43,.24);color:#84251d;background:rgba(192,57,43,.06);padding:10px;border-radius:8px;font-size:.86rem}
+.out{flex:1;min-height:0;overflow:auto;background:var(--code2);color:var(--codeText);border:1px solid #1c2b3a;border-radius:8px;padding:14px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.55;white-space:pre-wrap;word-break:break-word}
 .report{font-family:inherit;list-style:none}
-.report li{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);color:#d7d0c6;font-size:.84rem}
-.meta{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px;margin-bottom:12px}
-.metric{border:1px solid var(--line);border-radius:7px;background:rgba(255,255,255,.025);padding:9px 10px;min-width:0}
-.metric span{display:block;color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em}
-.metric strong{display:block;margin-top:3px;font-size:.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.err{display:none;margin-bottom:12px;border:1px solid rgba(224,95,95,.38);color:#ffd3d3;background:rgba(224,95,95,.08);padding:10px;border-radius:7px;font-size:.86rem}
-.hidden{display:none}
-@media(max-width:900px){
-  .top{display:block}
-  .status{justify-content:flex-start;margin-top:10px}
-  .shell{height:auto;display:block}
-  .pane{border-right:0;border-bottom:1px solid var(--line)}
-  textarea,.out{height:auto;min-height:320px;max-height:none}
-  .controls{grid-template-columns:1fr}
-  .meta{grid-template-columns:1fr 1fr}
+.report li{padding:9px 0;border-bottom:1px solid rgba(255,255,255,.08);color:#d9e0e8;font-size:.84rem}
+.hidden{display:none!important}
+@media(max-width:980px){
+  .top{height:auto;min-height:64px;align-items:flex-start;flex-direction:column;padding:14px 16px}
+  .status{justify-content:flex-start}
+  .workspace{height:auto;grid-template-columns:1fr;padding:12px}
+  .panel{min-height:520px}
+  .toolbar{grid-template-columns:1fr 1fr}
+  .summary{grid-template-columns:1fr 1fr}
+}
+@media(max-width:560px){
+  .toolbar,.summary{grid-template-columns:1fr}
+  .dropzone{display:block}
+  .dropzone span{display:block;margin-top:4px}
+  .resultTabs{height:auto;align-items:flex-start;flex-wrap:wrap;padding:8px}
+  .actions{margin-left:0;width:100%}
+  .actions .btn{flex:1}
 }
 </style>
 </head>
 <body>
-<header class="top">
-  <div class="brand">
-    <h1>YARA to Sigma Workbench</h1>
-    <p>yar2sig v3</p>
-  </div>
-  <div class="status" id="status">
-    <span class="pill">Idle</span>
-  </div>
-</header>
-
-<main class="shell">
-  <section class="pane">
-    <div class="label"><span>Source Rule</span><span id="charCount">0 bytes</span></div>
-    <textarea id="rule" placeholder="Paste YARA rule..." spellcheck="false"></textarea>
-    <div class="controls">
-      <select id="pipeline" title="Mapping pipeline">
-        {% for p in pipelines %}<option value="{{p}}">{{p}}</option>{% endfor %}
-      </select>
-      <select id="backend" title="SIEM backend">
-        {% for k,v in backends.items() %}<option value="{{k}}">{{v}}</option>{% endfor %}
-      </select>
-      <button class="btn" type="button" onclick="pickFile()">Import .yar</button>
-      <button class="btn primary" id="convertBtn" onclick="doConvert()">Convert</button>
-    </div>
-    <input id="fileInput" type="file" accept=".yar,.yara,.txt,.rule,text/plain" class="hidden">
-    <div class="dropzone" id="dropzone">
-      <strong>Drop YARA file here</strong>
-      <span id="fileName">No file loaded</span>
-    </div>
-    <div class="samples">
-      <button class="sample" onclick="loadSample('basic')">Basic</button>
-      <button class="sample" onclick="loadSample('c2')">C2</button>
-      <button class="sample" onclick="loadSample('complex')">Complex</button>
-      <button class="sample" onclick="loadSample('hash')">Hash</button>
-    </div>
-  </section>
-
-  <section class="pane">
-    <div class="tabs">
-      <button class="tab active" data-tab="sigma" onclick="switchTab('sigma')">Sigma</button>
-      <button class="tab" data-tab="query" onclick="switchTab('query')">Query</button>
-      <button class="tab" data-tab="report" onclick="switchTab('report')">Report</button>
-      <div class="actions">
-        <button class="btn" id="copyBtn" onclick="copyOut()">Copy</button>
-        <button class="btn" onclick="download()">Download</button>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="mark"></div>
+      <div>
+        <h1>YARA Sigma Studio</h1>
+        <p>Convert YARA rules into Sigma and backend queries</p>
       </div>
     </div>
-    <div class="err" id="err"></div>
-    <div class="meta">
-      <div class="metric"><span>Confidence</span><strong id="metricConfidence">-</strong></div>
-      <div class="metric"><span>Patterns</span><strong id="metricPatterns">-</strong></div>
-      <div class="metric"><span>Review</span><strong id="metricReview">-</strong></div>
-      <div class="metric"><span>Rule</span><strong id="metricRule">-</strong></div>
+    <div class="status" id="status">
+      <span class="pill">Idle</span>
     </div>
-    <pre class="out" id="out-sigma">Conversion output will appear here.</pre>
-    <pre class="out hidden" id="out-query"></pre>
-    <ul class="out report hidden" id="out-report"></ul>
-  </section>
-</main>
+  </header>
+
+  <main class="workspace">
+    <section class="panel">
+      <div class="panelHead">
+        <div class="panelTitle">Source</div>
+        <div class="counter" id="charCount">0 bytes</div>
+      </div>
+      <div class="toolbar">
+        <select id="pipeline" title="Mapping pipeline">
+          {% for p in pipelines %}<option value="{{p}}">{{p}}</option>{% endfor %}
+        </select>
+        <select id="backend" title="SIEM backend">
+          {% for k,v in backends.items() %}<option value="{{k}}">{{v}}</option>{% endfor %}
+        </select>
+        <button class="btn" type="button" onclick="pickFile()">Import .yar</button>
+        <button class="btn primary" id="convertBtn" onclick="doConvert()">Convert</button>
+      </div>
+      <input id="fileInput" type="file" accept=".yar,.yara,.txt,.rule,text/plain" class="hidden">
+      <div class="sourceWrap">
+        <div class="dropzone" id="dropzone">
+          <strong>Drop YARA file here</strong>
+          <span id="fileName">No file loaded</span>
+        </div>
+        <textarea id="rule" placeholder="Paste or import a YARA rule..." spellcheck="false"></textarea>
+        <div class="samples">
+          <button class="sample" onclick="loadSample('basic')">Basic</button>
+          <button class="sample" onclick="loadSample('c2')">C2</button>
+          <button class="sample" onclick="loadSample('complex')">Complex</button>
+          <button class="sample" onclick="loadSample('hash')">Hash</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="resultTabs">
+        <button class="tab active" data-tab="sigma" onclick="switchTab('sigma')">Sigma</button>
+        <button class="tab" data-tab="query" onclick="switchTab('query')">Query</button>
+        <button class="tab" data-tab="report" onclick="switchTab('report')">Report</button>
+        <div class="actions">
+          <button class="btn" id="copyBtn" onclick="copyOut()">Copy</button>
+          <button class="btn" onclick="download()">Download</button>
+        </div>
+      </div>
+      <div class="summary">
+        <div class="metric"><span>Confidence</span><strong id="metricConfidence">-</strong></div>
+        <div class="metric"><span>Patterns</span><strong id="metricPatterns">-</strong></div>
+        <div class="metric"><span>Review</span><strong id="metricReview">-</strong></div>
+        <div class="metric"><span>Rule</span><strong id="metricRule">-</strong></div>
+      </div>
+      <div class="outputWrap">
+        <div class="err" id="err"></div>
+        <pre class="out" id="out-sigma">Conversion output will appear here.</pre>
+        <pre class="out hidden" id="out-query"></pre>
+        <ul class="out report hidden" id="out-report"></ul>
+      </div>
+    </section>
+  </main>
+</div>
 
 <script>
 const SAMPLES = {
@@ -137,6 +166,7 @@ function esc(value){
 }
 function loadSample(key){
   document.getElementById('rule').value = SAMPLES[key];
+  document.getElementById('fileName').textContent = 'Sample loaded';
   updateCount();
 }
 function switchTab(tab){
