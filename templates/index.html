@@ -3,67 +3,76 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YARA → Sigma Converter</title>
+<title>YARA to Sigma Workbench</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0a0e17;--panel:#111827;--panel2:#1a2332;--border:#1e293b;
-  --text:#f1f5f9;--muted:#94a3b8;--dim:#64748b;
-  --accent:#6366f1;--accent2:#06b6d4;--green:#22c55e;--red:#ef4444;--yellow:#eab308;
+  --bg:#0f1115;--panel:#171a21;--panel2:#20242d;--ink:#f4f0e8;--muted:#a8a29a;
+  --line:#313640;--accent:#d78b30;--accent2:#3aa98f;--bad:#e05f5f;--warn:#d6aa3d;--good:#54b876;
 }
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
-a{color:var(--accent2);text-decoration:none}
-header{text-align:center;padding:40px 20px 24px;border-bottom:1px solid var(--border);position:relative;overflow:hidden}
-header::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0,rgba(99,102,241,.12),transparent 60%);pointer-events:none}
-h1{font-size:2rem;font-weight:800;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-header p{color:var(--muted);margin-top:6px;font-size:.95rem}
-.wrap{max-width:1280px;margin:0 auto;padding:24px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
-@media(max-width:920px){.wrap{grid-template-columns:1fr}}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
-.card h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin-bottom:12px;display:flex;align-items:center;gap:8px}
-textarea{width:100%;min-height:340px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:ui-monospace,'JetBrains Mono',Menlo,monospace;font-size:.85rem;resize:vertical}
-textarea:focus{outline:none;border-color:var(--accent)}
-.controls{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
-select{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:.85rem;cursor:pointer}
-select:focus{outline:none;border-color:var(--accent)}
-.btn{padding:10px 18px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-weight:600;cursor:pointer;font-size:.85rem;transition:all .15s}
-.btn:hover{border-color:var(--accent);transform:translateY(-1px)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn.primary:hover{filter:brightness(1.15)}
-.btn.sm{padding:5px 12px;font-size:.75rem}
-.output{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:ui-monospace,monospace;font-size:.82rem;white-space:pre-wrap;word-break:break-word;min-height:120px;max-height:360px;overflow:auto;color:#cbd5e1}
-.tabs{display:flex;gap:4px;margin-bottom:10px}
-.tab{padding:7px 14px;border-radius:7px 7px 0 0;background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:.82rem;font-weight:600}
-.tab.active{color:var(--text);background:var(--panel2)}
-.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap}
-.chips{display:flex;gap:6px;flex-wrap:wrap}
-.chip{background:rgba(99,102,241,.12);color:#a5b4fc;padding:3px 9px;border-radius:12px;font-size:.72rem;font-weight:600}
-.report li{font-size:.78rem;color:var(--muted);margin-left:16px;margin-bottom:3px}
-.err{color:var(--red);font-size:.85rem;padding:10px}
-.samples{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.samples a{font-size:.75rem;background:var(--panel2);padding:4px 10px;border-radius:6px;cursor:pointer;border:1px solid var(--border)}
-footer{text-align:center;padding:24px;color:var(--dim);font-size:.8rem;border-top:1px solid var(--border)}
+body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:linear-gradient(135deg,#0f1115 0%,#14161b 52%,#101816 100%);color:var(--ink);line-height:1.45}
+button,select,textarea{font:inherit}
+button{cursor:pointer}
+.top{border-bottom:1px solid var(--line);padding:18px 22px;display:flex;justify-content:space-between;gap:16px;align-items:center}
+.brand h1{font-size:1.15rem;font-weight:800;letter-spacing:0}
+.brand p{color:var(--muted);font-size:.82rem;margin-top:2px}
+.status{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.pill{border:1px solid var(--line);background:rgba(255,255,255,.03);border-radius:999px;padding:5px 9px;color:var(--muted);font-size:.75rem}
+.pill.good{color:var(--good);border-color:rgba(84,184,118,.35)}
+.pill.warn{color:var(--warn);border-color:rgba(214,170,61,.35)}
+.pill.bad{color:var(--bad);border-color:rgba(224,95,95,.35)}
+.shell{height:calc(100vh - 75px);display:grid;grid-template-columns:minmax(360px,42%) 1fr}
+.pane{min-width:0;padding:18px;border-right:1px solid var(--line);overflow:auto}
+.pane:last-child{border-right:0}
+.label{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+textarea{width:100%;height:calc(100vh - 230px);min-height:360px;background:#0b0d11;color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:14px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.84rem;resize:vertical;line-height:1.5}
+textarea:focus,select:focus{outline:1px solid var(--accent)}
+.controls{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin:12px 0}
+select,.btn{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:9px 11px}
+.btn{font-weight:700}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#17100a}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.samples{display:flex;gap:7px;flex-wrap:wrap}
+.sample{font-size:.76rem;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:999px;padding:5px 9px}
+.tabs{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.tab{background:transparent;border:0;color:var(--muted);padding:9px 12px;border-bottom:2px solid transparent}
+.tab.active{color:var(--ink);border-color:var(--accent2)}
+.actions{margin-left:auto;display:flex;gap:8px;padding-bottom:6px}
+.out{background:#0b0d11;border:1px solid var(--line);border-radius:7px;padding:14px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.82rem;white-space:pre-wrap;word-break:break-word;min-height:calc(100vh - 250px);max-height:calc(100vh - 250px);overflow:auto}
+.report{font-family:inherit;list-style:none}
+.report li{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);color:#d7d0c6;font-size:.84rem}
+.meta{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px;margin-bottom:12px}
+.metric{border:1px solid var(--line);border-radius:7px;background:rgba(255,255,255,.025);padding:9px 10px;min-width:0}
+.metric span{display:block;color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em}
+.metric strong{display:block;margin-top:3px;font-size:.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.err{display:none;margin-bottom:12px;border:1px solid rgba(224,95,95,.38);color:#ffd3d3;background:rgba(224,95,95,.08);padding:10px;border-radius:7px;font-size:.86rem}
 .hidden{display:none}
-.copied{color:var(--green)!important}
+@media(max-width:900px){
+  .top{display:block}
+  .status{justify-content:flex-start;margin-top:10px}
+  .shell{height:auto;display:block}
+  .pane{border-right:0;border-bottom:1px solid var(--line)}
+  textarea,.out{height:auto;min-height:320px;max-height:none}
+  .controls{grid-template-columns:1fr}
+  .meta{grid-template-columns:1fr 1fr}
+}
 </style>
 </head>
 <body>
-<header>
-  <h1>🛡️ YARA → Sigma Converter</h1>
-  <p>Convert YARA rules to Sigma + native SIEM/EDR queries · IOC classification · MITRE ATT&CK tagging</p>
+<header class="top">
+  <div class="brand">
+    <h1>YARA to Sigma Workbench</h1>
+    <p>yar2sig v3</p>
+  </div>
+  <div class="status" id="status">
+    <span class="pill">Idle</span>
+  </div>
 </header>
 
-<div class="wrap">
-  <!-- INPUT -->
-  <div class="card">
-    <h2>📥 YARA Rule</h2>
-    <textarea id="rule" placeholder="Paste your YARA rule here..." spellcheck="false"></textarea>
-    <div class="samples">
-      <span style="color:var(--dim);font-size:.75rem">Samples:</span>
-      <a onclick="loadSample('basic')">Basic</a>
-      <a onclick="loadSample('c2')">C2 / Network</a>
-      <a onclick="loadSample('hash')">Hash + Path</a>
-    </div>
+<main class="shell">
+  <section class="pane">
+    <div class="label"><span>Source Rule</span><span id="charCount">0 bytes</span></div>
+    <textarea id="rule" placeholder="Paste YARA rule..." spellcheck="false"></textarea>
     <div class="controls">
       <select id="pipeline" title="Mapping pipeline">
         {% for p in pipelines %}<option value="{{p}}">{{p}}</option>{% endfor %}
@@ -71,107 +80,131 @@ footer{text-align:center;padding:24px;color:var(--dim);font-size:.8rem;border-to
       <select id="backend" title="SIEM backend">
         {% for k,v in backends.items() %}<option value="{{k}}">{{v}}</option>{% endfor %}
       </select>
-      <button class="btn primary" onclick="doConvert()">⚡ Convert</button>
+      <button class="btn primary" id="convertBtn" onclick="doConvert()">Convert</button>
     </div>
-  </div>
+    <div class="samples">
+      <button class="sample" onclick="loadSample('basic')">Basic</button>
+      <button class="sample" onclick="loadSample('c2')">C2</button>
+      <button class="sample" onclick="loadSample('complex')">Complex</button>
+      <button class="sample" onclick="loadSample('hash')">Hash</button>
+    </div>
+  </section>
 
-  <!-- OUTPUT -->
-  <div class="card">
-    <div class="bar">
-      <div class="tabs">
-        <button class="tab active" data-tab="sigma" onclick="switchTab('sigma')">Sigma</button>
-        <button class="tab" data-tab="query" onclick="switchTab('query')">Query</button>
-        <button class="tab" data-tab="report" onclick="switchTab('report')">Report</button>
-      </div>
-      <div>
-        <button class="btn sm" id="copyBtn" onclick="copyOut()">📋 Copy</button>
-        <button class="btn sm" onclick="download()">💾 Download</button>
+  <section class="pane">
+    <div class="tabs">
+      <button class="tab active" data-tab="sigma" onclick="switchTab('sigma')">Sigma</button>
+      <button class="tab" data-tab="query" onclick="switchTab('query')">Query</button>
+      <button class="tab" data-tab="report" onclick="switchTab('report')">Report</button>
+      <div class="actions">
+        <button class="btn" id="copyBtn" onclick="copyOut()">Copy</button>
+        <button class="btn" onclick="download()">Download</button>
       </div>
     </div>
-    <select id="ruleSelect" class="hidden" onchange="showRule(this.value)" style="width:100%;margin-bottom:10px"></select>
-    <div class="chips" id="chips"></div>
-    <div id="err" class="err hidden"></div>
-    <pre class="output" id="out-sigma">Click "Convert" to generate a Sigma rule…</pre>
-    <pre class="output hidden" id="out-query"></pre>
-    <ul class="output report hidden" id="out-report"></ul>
-  </div>
-</div>
-
-<footer>
-  yar2sig v3 · <a href="https://github.com/wahidhendrawan/yara-sigma-webui">GitHub</a> ·
-  install <code>sigma-cli</code> for native backend conversion
-</footer>
+    <div class="err" id="err"></div>
+    <div class="meta">
+      <div class="metric"><span>Confidence</span><strong id="metricConfidence">-</strong></div>
+      <div class="metric"><span>Patterns</span><strong id="metricPatterns">-</strong></div>
+      <div class="metric"><span>Review</span><strong id="metricReview">-</strong></div>
+      <div class="metric"><span>Rule</span><strong id="metricRule">-</strong></div>
+    </div>
+    <pre class="out" id="out-sigma">Conversion output will appear here.</pre>
+    <pre class="out hidden" id="out-query"></pre>
+    <ul class="out report hidden" id="out-report"></ul>
+  </section>
+</main>
 
 <script>
 const SAMPLES = {
-  basic: `rule SuspiciousExecutable : malware {\n  meta:\n    author = "analyst"\n    description = "Detects suspicious dropper"\n    reference = "T1059.003"\n  strings:\n    $a = "cmd.exe /c"\n    $b = "powershell -enc"\n  condition:\n    any of them\n}`,
+  basic: `rule SuspiciousExecutable : malware {\n  meta:\n    author = "analyst"\n    description = "Detects suspicious dropper"\n    reference = "T1059.003"\n  strings:\n    $a = "cmd.exe /c"\n    $b = "powershell -enc" nocase\n  condition:\n    any of them\n}`,
   c2: `rule C2Beacon {\n  meta:\n    description = "Detects C2 beacon traffic"\n  strings:\n    $url = "http://malicious-c2.example.com/gate.php"\n    $ip  = "185.220.101.45"\n    $ua  = "Mozilla/4.0 (compatible; MSIE)"\n  condition:\n    all of them\n}`,
-  hash: `rule KnownMalwareHash {\n  meta:\n    description = "Detects known malware by hash and path"\n    author = "ir-team"\n  strings:\n    $h = "44d88612fea8a8f36de82e1278abb02f"\n    $p = "C:\\\\Users\\\\Public\\\\evil.exe"\n  condition:\n    any of them\n}`
+  complex: `rule ComplexCondition {\n  strings:\n    $a1 = "rundll32.exe"\n    $a2 = "regsvr32.exe"\n    $b = /powershell\\\\s+-e(nc)?/ nocase\n  condition:\n    1 of ($a*) and $b\n}`,
+  hash: `rule KnownMalwareHash {\n  meta:\n    description = "Detects known malware by hash and path"\n  strings:\n    $h = "44d88612fea8a8f36de82e1278abb02f"\n    $p = "C:\\\\Users\\\\Public\\\\evil.exe"\n  condition:\n    any of them\n}`
 };
 let current = 'sigma';
 let lastSigma = '';
-let rules = [];
 
-function loadSample(k){ document.getElementById('rule').value = SAMPLES[k]; }
-function switchTab(t){
-  current = t;
-  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
-  ['sigma','query','report'].forEach(x=>document.getElementById('out-'+x).classList.toggle('hidden', x!==t));
+function esc(value){
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
-function confColor(c){ return c>=80?'var(--green)':c>=50?'var(--yellow)':'var(--red)'; }
-function showRule(i){
-  const r = rules[i];
-  if(!r) return;
-  lastSigma = r.sigma;
-  document.getElementById('out-sigma').textContent = r.sigma;
-  document.getElementById('out-query').textContent = r.query;
-  document.getElementById('out-report').innerHTML = r.report.map(x=>`<li>${x.replace(/</g,'&lt;')}</li>`).join('');
-  const chips = [
-    `<span class="chip" style="background:rgba(34,197,94,.12);color:${confColor(r.confidence)}">⬤ ${r.confidence}/100 confidence</span>`,
-    `<span class="chip">📦 ${r.patterns} patterns</span>`,
-  ].concat((r.tags||[]).map(t=>`<span class="chip">${t}</span>`));
-  document.getElementById('chips').innerHTML = chips.join('');
+function loadSample(key){
+  document.getElementById('rule').value = SAMPLES[key];
+  updateCount();
+}
+function switchTab(tab){
+  current = tab;
+  document.querySelectorAll('.tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+  ['sigma','query','report'].forEach(name => document.getElementById('out-' + name).classList.toggle('hidden', name !== tab));
+}
+function updateStatus(quality){
+  const status = document.getElementById('status');
+  if(!quality){
+    status.innerHTML = '<span class="pill">Idle</span>';
+    return;
+  }
+  const cls = quality.confidence === 'high' ? 'good' : quality.confidence === 'medium' ? 'warn' : 'bad';
+  status.innerHTML = `<span class="pill ${cls}">${esc(quality.confidence)} ${esc(quality.confidence_score)}/100</span><span class="pill">${quality.review_required ? 'Review required' : 'Ready for tuning'}</span>`;
+}
+function updateCount(){
+  const bytes = new Blob([document.getElementById('rule').value]).size;
+  document.getElementById('charCount').textContent = `${bytes} bytes`;
 }
 async function doConvert(){
   const rule = document.getElementById('rule').value;
   const pipeline = document.getElementById('pipeline').value;
   const backend = document.getElementById('backend').value;
   const err = document.getElementById('err');
-  err.classList.add('hidden');
-  if(!rule.trim()){ err.textContent='Paste a YARA rule first.'; err.classList.remove('hidden'); return; }
+  const btn = document.getElementById('convertBtn');
+  err.style.display = 'none';
+  if(!rule.trim()){
+    err.textContent = 'No YARA rule provided.';
+    err.style.display = 'block';
+    return;
+  }
+  btn.disabled = true;
   try{
-    const r = await fetch('/api/convert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rule,pipeline,backend})});
-    const d = await r.json();
-    if(!r.ok){ throw new Error(d.error||'Conversion failed'); }
-    rules = d.rules;
-    // Rule selector when multiple rules in the file
-    const sel = document.getElementById('ruleSelect');
-    if(d.count > 1){
-      sel.classList.remove('hidden');
-      sel.innerHTML = rules.map((x,i)=>`<option value="${i}">${i+1}. ${x.name} (${x.confidence}/100)</option>`).join('');
-    } else {
-      sel.classList.add('hidden');
-    }
-    showRule(0);
-  }catch(e){ err.textContent = e.message; err.classList.remove('hidden'); }
+    const response = await fetch('/api/convert', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({rule, pipeline, backend})
+    });
+    const data = await response.json();
+    if(!response.ok) throw new Error(data.error || 'Conversion failed');
+    lastSigma = data.sigma;
+    document.getElementById('out-sigma').textContent = data.sigma;
+    document.getElementById('out-query').textContent = data.query;
+    document.getElementById('out-report').innerHTML = data.report.map(item => `<li>${esc(item)}</li>`).join('');
+    document.getElementById('metricConfidence').textContent = `${data.quality.confidence || '-'} ${data.quality.confidence_score ?? ''}`.trim();
+    document.getElementById('metricPatterns').textContent = data.parsed.patterns;
+    document.getElementById('metricReview').textContent = data.quality.review_required ? 'Required' : 'Normal';
+    document.getElementById('metricRule').textContent = data.parsed.name || '-';
+    updateStatus(data.quality);
+  }catch(error){
+    err.textContent = error.message;
+    err.style.display = 'block';
+  }finally{
+    btn.disabled = false;
+  }
 }
 function copyOut(){
-  const t = document.getElementById('out-'+current).textContent;
-  navigator.clipboard.writeText(t);
-  const b = document.getElementById('copyBtn');
-  b.textContent='✓ Copied'; b.classList.add('copied');
-  setTimeout(()=>{b.textContent='📋 Copy';b.classList.remove('copied');},1500);
+  const text = document.getElementById('out-' + current).textContent;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById('copyBtn');
+  btn.textContent = 'Copied';
+  setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
 }
 function download(){
   if(!lastSigma) return;
-  const blob = new Blob([lastSigma],{type:'text/yaml'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download='converted.sigma.yml'; a.click();
+  const blob = new Blob([lastSigma], {type:'text/yaml'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'converted.sigma.yml';
+  link.click();
 }
-// Convert on Ctrl/Cmd+Enter
-document.getElementById('rule').addEventListener('keydown',e=>{
-  if((e.ctrlKey||e.metaKey)&&e.key==='Enter') doConvert();
+document.getElementById('rule').addEventListener('input', updateCount);
+document.getElementById('rule').addEventListener('keydown', event => {
+  if((event.ctrlKey || event.metaKey) && event.key === 'Enter') doConvert();
 });
+updateCount();
 </script>
 </body>
 </html>

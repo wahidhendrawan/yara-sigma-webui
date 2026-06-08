@@ -16,6 +16,21 @@ dependencies = ["PyYAML>=6.0.1"]
 [project.optional-dependencies]
 web = ["Flask>=3.0"]
 dev = ["pytest>=7.0"]
+prod = ["gunicorn>=23.0"]
+native = [
+    "sigma-cli>=1.0",
+    "pysigma-backend-elasticsearch>=1.1",
+    "pysigma-backend-splunk>=1.1",
+    "pysigma-backend-qradar-aql>=0.3",
+]
+full = [
+    "Flask>=3.0",
+    "gunicorn>=23.0",
+    "sigma-cli>=1.0",
+    "pysigma-backend-elasticsearch>=1.1",
+    "pysigma-backend-splunk>=1.1",
+    "pysigma-backend-qradar-aql>=0.3",
+]
 
 [project.scripts]
 yar2sig = "yar2sig.cli:main"
@@ -28,6 +43,3 @@ packages = ["yar2sig"]
 
 [tool.setuptools.package-data]
 yar2sig = ["mappings/*.yaml"]
-
-[tool.pytest.ini_options]
-pythonpath = ["."]

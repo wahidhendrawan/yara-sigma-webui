@@ -15,46 +15,61 @@ DOMAIN_RE = re.compile(r"^(?=.{1,253}$)(?:[A-Za-z0-9_-]+\.)+[A-Za-z]{2,}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 REG_RE = re.compile(r"^(?:HKLM|HKCU|HKCR|HKU|HKEY_)", re.I)
 URL_RE = re.compile(r"^[a-z]+://", re.I)
+NAMED_PIPE_RE = re.compile(r"^\\\\(?:\.\\)?pipe\\", re.I)
 
 FILE_EXTS = {
-    "exe", "dll", "sys", "ocx", "scr", "bat", "cmd", "ps1", "psm1",
-    "vbs", "vbe", "js", "jse", "jar", "pdb", "tmp", "dat",
-    "bin", "lnk", "hta", "wsf", "msi", "dmp", "so", "elf", "sh", "py",
+    "bat", "bin", "cmd", "dat", "dll", "dmp", "elf", "exe", "hta", "jar",
+    "js", "jse", "lnk", "msi", "ocx", "pdb", "ps1", "psm1", "py", "scr",
+    "sh", "so", "sys", "tmp", "vbe", "vbs", "wsf",
 }
 
 MUTEX_HINTS = ("global\\", "local\\", "mutex", "\\sessions\\")
+USER_AGENT_HINTS = (
+    "mozilla/",
+    "chrome/",
+    "firefox/",
+    "safari/",
+    "trident/",
+    "edge/",
+    "edg/",
+    "opera/",
+    "curl/",
+    "wget/",
+)
 
 
 def classify_pattern(pattern: str) -> str:
-    """Return one of: url, ip, hash, email, domain, registry, mutex,
-    path_or_filename, generic."""
-    s = pattern.strip()
-    if not s:
+    """Return a normalized IOC type for mapping selection."""
+    value = pattern.strip()
+    if not value:
         return "generic"
 
-    if URL_RE.match(s):
+    low = value.lower()
+    if URL_RE.match(value):
         return "url"
-    if REG_RE.match(s) or "\\software\\" in s.lower() or "\\system\\currentcontrolset" in s.lower():
+    if REG_RE.match(value) or "\\software\\" in low or "\\system\\currentcontrolset" in low:
         return "registry"
-    if IPV4_RE.match(s) or IPV6_RE.match(s):
+    if NAMED_PIPE_RE.match(value):
+        return "named_pipe"
+    if IPV4_RE.match(value) or IPV6_RE.match(value):
         return "ip"
-    if HASH_RE.match(s):
+    if HASH_RE.match(value):
         return "hash"
-    if EMAIL_RE.match(s):
+    if EMAIL_RE.match(value):
         return "email"
-
-    low = s.lower()
-    if any(h in low for h in MUTEX_HINTS):
+    if any(hint in low for hint in MUTEX_HINTS):
         return "mutex"
+    if any(hint in low for hint in USER_AGENT_HINTS):
+        return "user_agent"
 
-    # Path / filename
-    if "/" in s or "\\" in s:
+    if "/" in value or "\\" in value:
         return "path_or_filename"
-    ext = re.search(r"\.([A-Za-z0-9]{1,5})$", s)
+
+    ext = re.search(r"\.([A-Za-z0-9]{1,5})$", value)
     if ext and ext.group(1).lower() in FILE_EXTS:
         return "path_or_filename"
 
-    if DOMAIN_RE.match(s) and " " not in s:
+    if DOMAIN_RE.match(value) and " " not in value:
         return "domain"
 
     return "generic"

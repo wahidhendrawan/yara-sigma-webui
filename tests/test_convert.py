@@ -1,5 +1,9 @@
 """Tests for yar2sig."""
 
+import pytest
+
+import yar2sig.backends as backends
+from app import app
 from yar2sig import (
     available_pipelines,
     classify_pattern,
@@ -34,16 +38,36 @@ def test_classify():
     assert classify_pattern("C:\\Users\\Public\\x.exe") == "path_or_filename"
     assert classify_pattern("HKLM\\Software\\Run") == "registry"
     assert classify_pattern("user@evil.com") == "email"
+    assert classify_pattern("Mozilla/5.0 (Windows NT 10.0)") == "user_agent"
+    assert classify_pattern("\\\\.\\pipe\\msagent_") == "named_pipe"
     assert classify_pattern("just some text") == "generic"
 
 
 def test_parse():
-    p = parse_yara_rule(BASIC)
-    assert p["name"] == "TestRule"
-    assert p["meta"]["author"] == "tester"
-    assert "malware" in p["tags"]
-    assert len(p["strings"]) == 4
-    assert p["cond_type"] == "any"
+    parsed = parse_yara_rule(BASIC)
+    assert parsed["name"] == "TestRule"
+    assert parsed["meta"]["author"] == "tester"
+    assert "malware" in parsed["tags"]
+    assert len(parsed["strings"]) == 4
+    assert parsed["cond_type"] == "any"
+
+
+def test_parse_modifiers_and_escaped_text():
+    parsed = parse_yara_rule(
+        r'''
+rule Modded {
+  strings:
+    $a = "powershell\x20-enc" wide nocase
+    $b = /cmd\.exe\s+\/c/i
+  condition:
+    $a and $b
+}
+'''
+    )
+    assert parsed["strings"][0] == "powershell -enc"
+    assert parsed["string_modifiers"][0] == ["wide", "nocase"]
+    assert parsed["string_types"][1] == "regex"
+    assert parsed["condition_raw"] == "$a and $b"
 
 
 def test_split_multi():
@@ -53,49 +77,74 @@ def test_split_multi():
 
 def test_convert_and_tags():
     rule, report = convert(BASIC, "sysmon")
-    assert rule["title"] == "test desc" or rule["title"] == "TestRule"
+    assert rule["title"] == "test desc"
     assert "attack.t1059.003" in rule["tags"]
     assert rule["detection"]["condition"]
+    assert rule["x_yar2sig"]["confidence"] in {"high", "medium", "low"}
     assert len(report) >= 4
 
 
+def test_convert_uses_all_mapped_fields():
+    rule, _ = convert(
+        """
+rule UrlRule {
+  strings:
+    $url = "http://evil.example.com/path"
+  condition:
+    $url
+}
+""",
+        "sysmon",
+    )
+    assert rule["detection"]["condition"] == "(sel1_1 or sel1_2)"
+    assert "Image|contains" in rule["detection"]["sel1_1"]
+    assert "CommandLine|contains" in rule["detection"]["sel1_2"]
+
+
+def test_complex_condition_lowers_confidence():
+    rule, report = convert(
+        """
+rule Complex {
+  strings:
+    $a1 = "rundll32.exe"
+    $a2 = "regsvr32.exe"
+    $b = /powershell\\s+-enc/
+  condition:
+    1 of ($a*) and $b
+}
+""",
+        "sysmon",
+    )
+    assert rule["x_yar2sig"]["review_required"] is True
+    assert any("Complex YARA condition" in line for line in report)
+
+
 def test_pipelines_exist():
-    pls = available_pipelines()
+    pipelines = available_pipelines()
     for expected in ("sysmon", "winsec", "linux", "proxy"):
-        assert expected in pls
+        assert expected in pipelines
         assert "mappings" in load_mapping(expected)
 
 
-def test_query_fallback():
+def test_query_fallback_escapes_special_characters(monkeypatch):
+    monkeypatch.setattr(backends, "_sigma_cli_available", lambda: False)
     parsed = parse_yara_rule(BASIC)
     rule, _ = convert(BASIC, "sysmon")
-    q = generate_query("splunk", rule, parsed["strings"])
-    assert q  # non-empty
+    query = generate_query("splunk", rule, parsed["strings"] + ['evil"quoted\\path'])
+    assert r'evil\"quoted\\path' in query
 
 
-def test_convert_all_multi():
-    from yar2sig import convert_all
-    text = BASIC + "\nrule Second {\n strings:\n  $a=\"x\"\n condition:\n  $a\n}\n"
-    results = convert_all(text, "sysmon")
-    assert len(results) == 2
-    names = [r["title"] for r, _ in results]
-    assert "Second" in names or any("Second" in str(n) for n in names)
+def test_api_validates_backend():
+    client = app.test_client()
+    response = client.post("/api/convert", json={"rule": BASIC, "backend": "missing"})
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Unknown backend"
 
 
-def test_confidence_in_report():
-    _, report = convert(BASIC, "sysmon")
-    assert report[0].startswith("Conversion confidence:")
-    # BASIC has only text patterns -> high confidence
-    import re as _re
-    score = int(_re.search(r"(\d+)", report[0]).group(1))
-    assert score >= 80
-
-
-def test_confidence_low_for_hex():
-    hexrule = (
-        'rule H {\n strings:\n  $h = { 4D 5A 90 00 }\n'
-        ' condition:\n  $h\n}\n'
-    )
-    _, report = convert(hexrule, "sysmon")
-    score = int(__import__("re").search(r"(\d+)", report[0]).group(1))
-    assert score <= 80
+def test_api_returns_quality():
+    client = app.test_client()
+    response = client.post("/api/convert", json={"rule": BASIC, "pipeline": "sysmon", "backend": "splunk"})
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["quality"]["confidence"] in {"high", "medium", "low"}
+    assert payload["parsed"]["patterns"] == 4

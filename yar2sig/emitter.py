@@ -13,49 +13,87 @@ from typing import Any
 
 from .ioc import classify_pattern
 
-# MITRE technique IDs sometimes embedded in YARA meta
 MITRE_RE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b")
+COMPLEX_CONDITION_RE = re.compile(r"\b\d+\s+of\b|\$[A-Za-z0-9_]*\*|for\s+any|for\s+all", re.I)
+REVIEW_MODIFIERS = {"wide", "xor", "base64", "base64wide", "fullword"}
 
 
-def _select_field(mapping: dict, ioc_type: str) -> tuple[str, str]:
-    m = mapping.get("mappings", {})
-    spec = m.get(ioc_type)
+def _default_fields(mapping: dict, ioc_type: str) -> list[str]:
+    logsource = mapping.get("logsource", {})
+    category = logsource.get("category", "")
+    product = logsource.get("product", "")
+    service = logsource.get("service", "")
+
+    if ioc_type == "user_agent":
+        if category == "proxy":
+            return ["c-useragent", "UserAgent"]
+        return ["CommandLine"]
+    if ioc_type == "named_pipe":
+        if product == "windows" and service == "sysmon":
+            return ["PipeName", "CommandLine"]
+        return [mapping.get("fallback_field", "message")]
+    return [mapping.get("fallback_field", "message")]
+
+
+def _select_fields(mapping: dict, ioc_type: str) -> tuple[list[str], str]:
+    specs = mapping.get("mappings", {})
+    spec = specs.get(ioc_type)
     if isinstance(spec, dict) and spec.get("fields"):
-        return spec["fields"][0], spec.get("op", "contains")
-    return mapping.get("fallback_field", "message"), "contains"
+        return list(spec["fields"]), spec.get("op", "contains")
+    return _default_fields(mapping, ioc_type), "contains"
 
 
 def _mitre_tags(meta: dict) -> list[str]:
     tags: list[str] = []
     blob = " ".join(str(v) for v in meta.values())
-    for t in MITRE_RE.findall(blob):
-        tag = f"attack.{t.lower()}"
+    for technique in MITRE_RE.findall(blob):
+        tag = f"attack.{technique.lower()}"
         if tag not in tags:
             tags.append(tag)
     return tags
 
 
-def _confidence(parsed: dict, ptypes: list[str]) -> tuple[int, str]:
-    """Score conversion fidelity 0-100 based on pattern types & count.
+def _selection_key(field: str, op: str, ptype: str, modifiers: list[str]) -> str:
+    if ptype == "regex":
+        return f"{field}|re"
+    if op == "contains":
+        return f"{field}|contains"
+    if op == "startswith":
+        return f"{field}|startswith"
+    if op == "endswith":
+        return f"{field}|endswith"
+    return field
 
-    Text/IOC patterns convert cleanly; hex/regex lose fidelity because
-    Sigma can't match raw bytes the way YARA does.
-    """
-    n = len(parsed.get("strings", []))
-    if n == 0:
-        return 0, "No string patterns extracted — Sigma rule is a stub."
-    hex_or_regex = sum(1 for t in ptypes if t in ("hex", "regex"))
-    clean = n - hex_or_regex
-    score = int(round(100 * clean / n))
-    if hex_or_regex:
-        score = min(score, 80)  # cap when lossy patterns present
+
+def _quality(patterns: list[str], ptypes: list[str], warnings: list[str], condition_raw: str) -> dict[str, Any]:
+    score = 100
+    if not patterns:
+        score -= 70
+    score -= min(40, sum(15 for ptype in ptypes if ptype in {"hex", "regex"}))
+    score -= min(25, len(warnings) * 5)
+    if COMPLEX_CONDITION_RE.search(condition_raw):
+        score -= 20
+    score = max(0, min(100, score))
+
     if score >= 80:
-        note = "High — text/IOC patterns map cleanly to Sigma fields."
-    elif score >= 50:
-        note = "Medium — some hex/regex patterns lose fidelity; review fields."
+        label = "high"
+    elif score >= 55:
+        label = "medium"
     else:
-        note = "Low — mostly hex/regex; Sigma cannot match raw bytes. Manual review required."
-    return score, note
+        label = "low"
+
+    return {
+        "score": score,
+        "label": label,
+        "warnings": warnings,
+        "review_required": score < 80 or bool(warnings),
+    }
+
+
+def _add_warning(warnings: list[str], report: list[str], message: str) -> None:
+    if message not in warnings:
+        warnings.append(message)
+    report.append(message)
 
 
 def emit_sigma(parsed: dict[str, Any], mapping: dict) -> tuple[dict[str, Any], list[str]]:
@@ -63,59 +101,86 @@ def emit_sigma(parsed: dict[str, Any], mapping: dict) -> tuple[dict[str, Any], l
     meta = parsed.get("meta", {})
     patterns = parsed.get("strings", [])
     ptypes = parsed.get("string_types", ["text"] * len(patterns))
+    modifiers = parsed.get("string_modifiers", [[] for _ in patterns])
     cond_type = parsed.get("cond_type", "any")
+    condition_raw = parsed.get("condition_raw", "")
     report: list[str] = []
-
-    score, conf_note = _confidence(parsed, ptypes)
+    warnings: list[str] = []
 
     detection: dict[str, Any] = {}
-    sel_names: list[str] = []
+    condition_groups: list[str] = []
 
     for idx, pattern in enumerate(patterns):
         ptype = ptypes[idx] if idx < len(ptypes) else "text"
+        mods = modifiers[idx] if idx < len(modifiers) else []
         if ptype == "hex":
             ioc_type = "hash"
-            report.append(f"Hex pattern #{idx + 1} treated as a binary/hash indicator (review manually).")
+            _add_warning(
+                warnings,
+                report,
+                f"Hex pattern #{idx + 1} needs manual review; Sigma cannot match raw bytes directly.",
+            )
         elif ptype == "regex":
             ioc_type = "generic"
-            report.append(f"Regex pattern '{pattern}' mapped with |re modifier.")
+            _add_warning(
+                warnings,
+                report,
+                f"Regex pattern '{pattern}' mapped with |re modifier; backend support may vary.",
+            )
         else:
             ioc_type = classify_pattern(pattern)
 
-        field, op = _select_field(mapping, ioc_type)
-        sel = f"sel{idx + 1}"
-        if ptype == "regex":
-            key = f"{field}|re"
-        elif op == "contains":
-            key = f"{field}|contains"
-        else:
-            key = field
-        detection[sel] = {key: pattern}
-        sel_names.append(sel)
-        report.append(f"Pattern '{pattern}' -> {ioc_type} -> field '{field}' (op: {op}).")
+        review_mods = sorted(set(mods).intersection(REVIEW_MODIFIERS))
+        if review_mods:
+            _add_warning(
+                warnings,
+                report,
+                f"Modifiers {', '.join(review_mods)} on pattern '{pattern}' require analyst validation.",
+            )
 
-    if sel_names:
+        fields, op = _select_fields(mapping, ioc_type)
+        group_names: list[str] = []
+        for field_idx, field in enumerate(fields, start=1):
+            sel_name = f"sel{idx + 1}_{field_idx}" if len(fields) > 1 else f"sel{idx + 1}"
+            detection[sel_name] = {_selection_key(field, op, ptype, mods): pattern}
+            group_names.append(sel_name)
+        condition_groups.append(f"({' or '.join(group_names)})" if len(group_names) > 1 else group_names[0])
+        report.append(f"Pattern '{pattern}' -> {ioc_type} -> fields {fields} (op: {op}).")
+
+    if condition_groups:
         joiner = " and " if cond_type == "all" else " or "
-        detection["condition"] = joiner.join(sel_names)
+        detection["condition"] = joiner.join(condition_groups)
     else:
+        _add_warning(warnings, report, "No usable patterns extracted; review the source rule.")
         detection["condition"] = "selection"
-        report.append("No usable patterns extracted; review the source rule.")
 
-    tags = _mitre_tags(meta) + [f"yara.{t}" for t in parsed.get("tags", [])]
+    if COMPLEX_CONDITION_RE.search(condition_raw):
+        _add_warning(warnings, report, f"Complex YARA condition preserved only approximately: {condition_raw}")
+
+    quality = _quality(patterns, ptypes, warnings, condition_raw)
+    report.append(f"Conversion confidence: {quality['label']} ({quality['score']}/100).")
+
+    tags = _mitre_tags(meta) + [f"yara.{tag}" for tag in parsed.get("tags", [])]
 
     rule: dict[str, Any] = {
-        "title": meta.get("title") or parsed.get("name", "ConvertedRule"),
+        "title": meta.get("title") or meta.get("description") or parsed.get("name", "ConvertedRule"),
         "id": str(uuid.uuid4()),
         "status": "experimental",
         "description": meta.get("description") or f"Converted from YARA rule {parsed.get('name', '')}",
         "author": meta.get("author", "yar2sig"),
         "date": meta.get("date", datetime.date.today().strftime("%Y/%m/%d")),
-        "references": [meta[k] for k in ("reference", "ref", "url") if meta.get(k)],
+        "references": [meta[key] for key in ("reference", "ref", "url") if meta.get(key)],
         "tags": tags,
         "logsource": mapping.get("logsource", {"category": "process_creation", "product": "windows"}),
         "detection": detection,
         "falsepositives": ["Unknown - review generated rule before deployment."],
         "level": meta.get("level", "medium"),
+        "x_yar2sig": {
+            "source_rule": parsed.get("name", "ConvertedRule"),
+            "confidence": quality["label"],
+            "confidence_score": quality["score"],
+            "review_required": quality["review_required"],
+            "warnings": quality["warnings"],
+        },
     }
-    report.insert(0, f"Conversion confidence: {score}/100 — {conf_note}")
     return rule, report

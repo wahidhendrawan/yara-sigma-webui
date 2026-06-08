@@ -41,8 +41,13 @@ docker compose up -d --build   # → http://127.0.0.1:8000
   conversion when installed; otherwise falls back to wildcard queries.
 - **Conversion report** — every conversion explains how each pattern was
   classified and mapped.
+- **Conversion confidence** — generated rules include a `x_yar2sig` quality
+  block with confidence score, warnings, and review-required status.
+- **Safer fallback queries** — backend fallback queries escape quotes,
+  backslashes, Lucene special characters, and SQL-like wildcard characters.
 - **Modern web UI** — dark theme, live conversion, tabs for Sigma/Query/Report,
-  copy & download buttons, built-in sample rules, `Ctrl+Enter` to convert.
+  confidence metrics, copy & download buttons, built-in sample rules,
+  `Ctrl+Enter` to convert.
 - **CLI** — convert single files or whole directories; list pipelines; generate
   backend queries.
 - **Docker-Compose-ready** — hardened container (non-root, read-only FS,
@@ -84,6 +89,13 @@ Or install as a package (gives you the `yar2sig` command):
 pip install -e .
 ```
 
+For a full local install with web, production server, and native Sigma backend
+conversion support:
+
+```bash
+pip install -e ".[full]"
+```
+
 ---
 
 ## 🖥️ Web UI
@@ -97,6 +109,20 @@ python app.py                  # http://127.0.0.1:5000
 Paste a YARA rule, pick a **pipeline** and a **backend**, hit **Convert**
 (or `Ctrl+Enter`). You get the Sigma rule, a native query, and a conversion
 report — each copyable/downloadable.
+
+The web API validates pipeline/backend names and returns structured conversion
+metadata:
+
+```json
+{
+  "quality": {
+    "confidence": "medium",
+    "confidence_score": 70,
+    "review_required": true,
+    "warnings": ["Complex YARA condition preserved only approximately: ..."]
+  }
+}
+```
 
 ---
 
@@ -186,9 +212,12 @@ Install `sigma-cli` + the relevant backend plugin for native conversion.
 ## 🧪 Tests
 
 ```bash
-pip install pytest
+pip install -e ".[web,dev]"
 pytest -q
 ```
+
+The repository includes GitHub Actions CI for Python 3.9 and 3.12, plus a Docker
+image build check.
 
 ---
 
