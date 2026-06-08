@@ -46,8 +46,8 @@ docker compose up -d --build   # → http://127.0.0.1:8000
 - **Safer fallback queries** — backend fallback queries escape quotes,
   backslashes, Lucene special characters, and SQL-like wildcard characters.
 - **Modern web UI** — dark theme, live conversion, tabs for Sigma/Query/Report,
-  confidence metrics, copy & download buttons, built-in sample rules,
-  `Ctrl+Enter` to convert.
+  confidence metrics, file import, copy & download buttons, built-in sample
+  rules, `Ctrl+Enter` to convert.
 - **CLI** — convert single files or whole directories; list pipelines; generate
   backend queries.
 - **Docker-Compose-ready** — hardened container (non-root, read-only FS,

@@ -27,11 +27,14 @@ button{cursor:pointer}
 .label{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
 textarea{width:100%;height:calc(100vh - 230px);min-height:360px;background:#0b0d11;color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:14px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.84rem;resize:vertical;line-height:1.5}
 textarea:focus,select:focus{outline:1px solid var(--accent)}
-.controls{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin:12px 0}
+.controls{display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;margin:12px 0}
 select,.btn{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:9px 11px}
 .btn{font-weight:700}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#17100a}
 .btn:disabled{opacity:.55;cursor:not-allowed}
+.dropzone{margin-top:12px;border:1px dashed rgba(215,139,48,.55);border-radius:7px;background:rgba(215,139,48,.06);padding:12px;color:var(--muted);font-size:.82rem;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.dropzone strong{color:var(--ink);font-size:.84rem}
+.dropzone.drag{border-color:var(--accent2);background:rgba(58,169,143,.08)}
 .samples{display:flex;gap:7px;flex-wrap:wrap}
 .sample{font-size:.76rem;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:999px;padding:5px 9px}
 .tabs{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--line);margin-bottom:12px}
@@ -80,7 +83,13 @@ select,.btn{background:var(--panel2);color:var(--ink);border:1px solid var(--lin
       <select id="backend" title="SIEM backend">
         {% for k,v in backends.items() %}<option value="{{k}}">{{v}}</option>{% endfor %}
       </select>
+      <button class="btn" type="button" onclick="pickFile()">Import .yar</button>
       <button class="btn primary" id="convertBtn" onclick="doConvert()">Convert</button>
+    </div>
+    <input id="fileInput" type="file" accept=".yar,.yara,.txt,.rule,text/plain" class="hidden">
+    <div class="dropzone" id="dropzone">
+      <strong>Drop YARA file here</strong>
+      <span id="fileName">No file loaded</span>
     </div>
     <div class="samples">
       <button class="sample" onclick="loadSample('basic')">Basic</button>
@@ -148,6 +157,24 @@ function updateCount(){
   const bytes = new Blob([document.getElementById('rule').value]).size;
   document.getElementById('charCount').textContent = `${bytes} bytes`;
 }
+function pickFile(){
+  document.getElementById('fileInput').click();
+}
+function loadFile(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    document.getElementById('rule').value = String(reader.result || '');
+    document.getElementById('fileName').textContent = file.name;
+    updateCount();
+    document.getElementById('status').innerHTML = `<span class="pill good">${esc(file.name)}</span><span class="pill">Loaded</span>`;
+  };
+  reader.onerror = () => {
+    const err = document.getElementById('err');
+    err.textContent = 'Failed to read the selected file.';
+    err.style.display = 'block';
+  };
+  reader.readAsText(file);
+}
 async function doConvert(){
   const rule = document.getElementById('rule').value;
   const pipeline = document.getElementById('pipeline').value;
@@ -201,6 +228,24 @@ function download(){
   link.click();
 }
 document.getElementById('rule').addEventListener('input', updateCount);
+document.getElementById('fileInput').addEventListener('change', event => {
+  const file = event.target.files && event.target.files[0];
+  if(file) loadFile(file);
+  event.target.value = '';
+});
+const dropzone = document.getElementById('dropzone');
+dropzone.addEventListener('click', pickFile);
+dropzone.addEventListener('dragover', event => {
+  event.preventDefault();
+  dropzone.classList.add('drag');
+});
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', event => {
+  event.preventDefault();
+  dropzone.classList.remove('drag');
+  const file = event.dataTransfer.files && event.dataTransfer.files[0];
+  if(file) loadFile(file);
+});
 document.getElementById('rule').addEventListener('keydown', event => {
   if((event.ctrlKey || event.metaKey) && event.key === 'Enter') doConvert();
 });
