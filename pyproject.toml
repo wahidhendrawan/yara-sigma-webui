@@ -38,6 +38,10 @@ yar2sig = "yar2sig.cli:main"
 [project.urls]
 Homepage = "https://github.com/wahidhendrawan/yara-sigma-webui"
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
 [tool.setuptools]
 packages = ["yar2sig"]
 
