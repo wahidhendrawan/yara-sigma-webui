@@ -45,9 +45,9 @@ docker compose up -d --build   # → http://127.0.0.1:8000
   block with confidence score, warnings, and review-required status.
 - **Safer fallback queries** — backend fallback queries escape quotes,
   backslashes, Lucene special characters, and SQL-like wildcard characters.
-- **Modern web UI** — focused YARA-to-Sigma workbench with Sigma output,
-  conversion report, confidence metrics, file import, copy & download buttons,
-  built-in sample rules, and `Ctrl+Enter` conversion.
+- **Modern web UI** — YARA-to-Sigma workbench with Sigma output, optional
+  SIEM query tab, conversion report, confidence metrics, file import, copy &
+  download buttons, built-in sample rules, and `Ctrl+Enter` conversion.
 - **CLI** — convert single files or whole directories; list pipelines; generate
   backend queries.
 - **Docker-Compose-ready** — hardened container (non-root, read-only FS,
@@ -106,12 +106,12 @@ docker compose up -d --build   # http://127.0.0.1:8000  (recommended)
 python app.py                  # http://127.0.0.1:5000
 ```
 
-Paste or import a YARA rule, pick a **mapping pipeline**, hit **Convert**
-(or `Ctrl+Enter`). The web UI returns a Sigma rule and a conversion report.
-Native backend query generation remains available through the CLI/library API,
-but the web app intentionally stays focused on YARA-to-Sigma conversion.
+Paste or import a YARA rule, pick a **mapping pipeline** and optional
+**query backend**, hit **Convert** (or `Ctrl+Enter`). The web UI returns a
+Sigma rule, a native query tab, and a conversion report.
 
-The web API validates pipeline names and returns structured conversion metadata:
+The web API validates pipeline/backend names and returns structured conversion
+metadata:
 
 ```json
 {

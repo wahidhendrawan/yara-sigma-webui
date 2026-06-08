@@ -1,7 +1,8 @@
 """Flask web UI for yar2sig.
 
 Serves a single-page YARA to Sigma converter. POST /api/convert returns
-the Sigma rule (YAML), conversion report, and quality metadata.
+the Sigma rule (YAML), conversion report, quality metadata, and an optional
+native SIEM query for the selected backend.
 """
 
 from __future__ import annotations
@@ -10,7 +11,9 @@ import yaml
 from flask import Flask, jsonify, render_template, request
 
 from yar2sig import (
+    BACKENDS,
     available_pipelines,
+    generate_query,
     load_mapping,
 )
 from yar2sig.emitter import emit_sigma
@@ -31,12 +34,13 @@ def index():
     return render_template(
         "index.html",
         pipelines=available_pipelines(),
+        backends={key: value[0] for key, value in BACKENDS.items()},
     )
 
 
 @app.route("/healthz")
 def healthz():
-    return jsonify(status="ok", pipelines=available_pipelines())
+    return jsonify(status="ok", pipelines=available_pipelines(), backends=list(BACKENDS))
 
 
 @app.route("/api/convert", methods=["POST"])
@@ -50,17 +54,22 @@ def api_convert():
 
     text = (data.get("rule") or "").strip()
     pipeline = data.get("pipeline") or "sysmon"
+    backend = data.get("backend") or "splunk"
     if not text:
         return _error("No YARA rule provided", 400)
     if pipeline not in available_pipelines():
         return _error("Unknown mapping pipeline", 400, available=available_pipelines())
+    if backend not in BACKENDS:
+        return _error("Unknown backend", 400, available=list(BACKENDS))
 
     try:
         parsed = parse_yara_rule(text)
         rule, report = emit_sigma(parsed, load_mapping(pipeline))
         sigma_yaml = yaml.safe_dump(rule, sort_keys=False, allow_unicode=True)
+        query = generate_query(backend, rule, parsed.get("strings", []))
         return jsonify(
             sigma=sigma_yaml,
+            query=query,
             report=report,
             quality=rule.get("x_yar2sig", {}),
             parsed={
