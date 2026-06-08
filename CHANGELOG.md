@@ -7,6 +7,11 @@ versioning follows [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **YARA Sigma Studio refresh** — focused workbench layout with `.yar` import,
+  mapping pipeline selector, restored SIEM/EDR query backend selector, and
+  dedicated Sigma / Query / Report tabs.
+- **Web API query output** — `/api/convert` validates backend names and returns
+  the generated native query alongside Sigma YAML and quality metadata.
 - **Multi-rule conversion** — `convert_all()` converts every YARA rule in a
   file. CLI writes one `.yml` per rule; the web API returns all rules; the UI
   shows a rule selector when a file contains more than one rule.
@@ -17,6 +22,10 @@ versioning follows [SemVer](https://semver.org/).
   Docker build + `/healthz` check.
 - `CONTRIBUTING.md` and this `CHANGELOG.md`.
 
+### Changed
+- Updated web copy and documentation to describe the current Docker Compose
+  workflow, file import, backend query generation, and 11-test validation suite.
+
 ## [3.0.0] - 2026-06-04
 
 Consolidated release merging v1 and v2 into a single working package.
@@ -26,7 +35,7 @@ Consolidated release merging v1 and v2 into a single working package.
 - IOC classification (9 types) and MITRE ATT&CK tag extraction from `meta`.
 - 4 mapping pipelines: `sysmon`, `winsec`, `linux`, `proxy`.
 - 7 SIEM/EDR backends with `sigma-cli` native conversion + wildcard fallback.
-- Modern dark-themed web UI with live conversion, tabs, copy/download, samples.
+- Modern web UI with live conversion, tabs, copy/download, samples.
 - CLI (`convert` / `pipelines` / `query`) and installable package (`pyproject.toml`).
 - Docker-Compose architecture: multi-stage image, gunicorn, bundled `sigma-cli`,
   hardened container (non-root, read-only FS, dropped caps, resource limits),

@@ -28,8 +28,8 @@ yar2sig/
 ├─ backends.py  # native query generation (sigma-cli + fallback)
 ├─ cli.py       # command-line interface
 └─ mappings/    # one YAML pipeline per log source
-app.py          # Flask web UI (+ /api/convert, /healthz)
-templates/      # web UI
+app.py          # Flask web UI (+ /api/convert, /healthz, backend validation)
+templates/      # YARA Sigma Studio UI
 tests/          # pytest suite
 ```
 
@@ -47,6 +47,14 @@ covering the new pattern.
 ### Add a backend
 Add an entry to `BACKENDS` in `yar2sig/backends.py` and, if `sigma-cli`
 supports it, set its target. Otherwise provide a fallback query format.
+Update `tests/test_convert.py` so `/api/convert` validates the backend and
+returns a query for the new target.
+
+### Update the web UI
+Keep the browser workflow focused on YARA-to-Sigma conversion: `.yar` import,
+mapping pipeline selection, optional SIEM/EDR query backend selection, and the
+Sigma / Query / Report result tabs. Avoid adding unrelated SIEM ingestion or
+rule-management scope unless it is backed by tests and documentation.
 
 ## Guidelines
 

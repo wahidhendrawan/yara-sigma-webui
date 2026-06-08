@@ -4,13 +4,14 @@
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/docker-compose%20ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![Backends](https://img.shields.io/badge/SIEM%2FEDR%20backends-7-6366f1)](#-supported-backends)
-[![Tests](https://img.shields.io/badge/tests-6%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-11%20passing-brightgreen)](tests/)
 [![Version](https://img.shields.io/badge/version-3.0.0-informational)](pyproject.toml)
 
 Convert **YARA rules** into **Sigma rules** and **native SIEM/EDR queries** —
 with automatic IOC classification, MITRE ATT&CK tagging, configurable mapping
-pipelines, a clean CLI, and a modern web UI. Ships **Docker-Compose-ready** with
-gunicorn and `sigma-cli` bundled for native conversion out of the box.
+pipelines, a clean CLI, and a professional web workbench. Ships
+**Docker-Compose-ready** with gunicorn and `sigma-cli` bundled for native
+conversion out of the box.
 
 ```bash
 docker compose up -d --build   # → http://127.0.0.1:8000
@@ -27,8 +28,9 @@ docker compose up -d --build   # → http://127.0.0.1:8000
 - **Modular library** (`yar2sig`) — parser, IOC classifier, Sigma emitter, and
   backend query generator are cleanly separated and independently testable.
 - **IOC classification** — patterns are auto-classified as `url`, `ip`, `hash`,
-  `email`, `domain`, `registry`, `mutex`, `path_or_filename`, or `generic` and
-  mapped to the right Sigma field per pipeline.
+  `email`, `domain`, `registry`, `mutex`, `user_agent`, `named_pipe`,
+  `path_or_filename`, or `generic` and mapped to the right Sigma field per
+  pipeline.
 - **YARA parsing** — handles text, hex, and regex strings, multiple rules per
   file, rule tags, and `meta` fields.
 - **MITRE ATT&CK tagging** — technique IDs (`T1059.001`) found in `meta` are
@@ -45,9 +47,10 @@ docker compose up -d --build   # → http://127.0.0.1:8000
   block with confidence score, warnings, and review-required status.
 - **Safer fallback queries** — backend fallback queries escape quotes,
   backslashes, Lucene special characters, and SQL-like wildcard characters.
-- **Modern web UI** — YARA-to-Sigma workbench with Sigma output, optional
-  SIEM query tab, conversion report, confidence metrics, file import, copy &
-  download buttons, built-in sample rules, and `Ctrl+Enter` conversion.
+- **YARA Sigma Studio** — focused YARA-to-Sigma workbench with `.yar` import,
+  mapping pipeline selection, SIEM query backend selection, Sigma/Query/Report
+  tabs, confidence metrics, copy/download actions, sample rules, and
+  `Ctrl+Enter` conversion.
 - **CLI** — convert single files or whole directories; list pipelines; generate
   backend queries.
 - **Docker-Compose-ready** — hardened container (non-root, read-only FS,
@@ -106,15 +109,18 @@ docker compose up -d --build   # http://127.0.0.1:8000  (recommended)
 python app.py                  # http://127.0.0.1:5000
 ```
 
-Paste or import a YARA rule, pick a **mapping pipeline** and optional
+Paste or import a `.yar` rule, pick a **mapping pipeline** and optional
 **query backend**, hit **Convert** (or `Ctrl+Enter`). The web UI returns a
-Sigma rule, a native query tab, and a conversion report.
+Sigma rule, a backend-specific SIEM/EDR query, and a conversion report in
+separate tabs.
 
 The web API validates pipeline/backend names and returns structured conversion
-metadata:
+metadata plus query output:
 
 ```json
 {
+  "sigma": "title: Suspicious_Cmd...",
+  "query": "_raw=\"*cmd.exe*\"",
   "quality": {
     "confidence": "medium",
     "confidence_score": 70,
