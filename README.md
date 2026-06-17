@@ -238,4 +238,4 @@ operators, and false positives for your environment before deploying.
 
 ## 📄 License
 
-[MIT](LICENSE) © Wahid Hendrawan
+[GPL-3.0](LICENSE) © Wahid Hendrawan
