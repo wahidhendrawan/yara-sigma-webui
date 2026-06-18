@@ -1,3 +1,5 @@
+[![CI](https://github.com/wahidhendrawan/yara-sigma-webui/actions/workflows/ci.yml/badge.svg)](https://github.com/wahidhendrawan/yara-sigma-webui/actions/workflows/ci.yml)
+
 # 🛡️ YARA → Sigma Converter (`yar2sig`)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
