@@ -8,7 +8,7 @@ native SIEM query for the selected backend.
 from __future__ import annotations
 
 import yaml
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, request
 
 from yar2sig import (
     BACKENDS,
@@ -31,11 +31,8 @@ def _error(message: str, status: int, **extra):
 
 @app.route("/")
 def index():
-    return render_template(
-        "index.html",
-        pipelines=available_pipelines(),
-        backends={key: value[0] for key, value in BACKENDS.items()},
-    )
+    """Serve the static SPA frontend (no Jinja rendering needed)."""
+    return app.send_static_file("index.html")
 
 
 @app.route("/healthz")

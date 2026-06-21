@@ -109,10 +109,10 @@ textarea{width:100%;min-height:0;height:100%;resize:none;border:1px solid var(--
       </div>
       <div class="toolbar">
         <select id="pipeline" title="Mapping pipeline">
-          {% for p in pipelines %}<option value="{{p}}">{{p}}</option>{% endfor %}
+          <option value="">Loading...</option>
         </select>
         <select id="backend" title="Query backend">
-          {% for k,v in backends.items() %}<option value="{{k}}">{{v}}</option>{% endfor %}
+          <option value="">Loading...</option>
         </select>
         <button class="btn" type="button" onclick="pickFile()">Import .yar</button>
         <button class="btn primary" id="convertBtn" onclick="doConvert()">Convert</button>
@@ -288,6 +288,43 @@ document.getElementById('rule').addEventListener('keydown', event => {
   if((event.ctrlKey || event.metaKey) && event.key === 'Enter') doConvert();
 });
 updateCount();
+</script>
+
+<script>
+// Load pipelines and backends from API (replaces Jinja template rendering)
+fetch("/healthz")
+  .then(res => res.json())
+  .then(data => {
+    const pipelineSelect = document.getElementById("pipeline");
+    const backendSelect = document.getElementById("backend");
+    
+    // Clear loading options
+    pipelineSelect.innerHTML = "";
+    backendSelect.innerHTML = "";
+    
+    // Populate pipelines
+    data.pipelines.forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p;
+      opt.textContent = p;
+      if (p === "sysmon") opt.selected = true;
+      pipelineSelect.appendChild(opt);
+    });
+    
+    // Populate backends
+    Object.entries(data.backends).forEach(([key, name]) => {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = name;
+      if (key === "splunk") opt.selected = true;
+      backendSelect.appendChild(opt);
+    });
+  })
+  .catch(err => {
+    console.error("Failed to load config:", err);
+    document.getElementById("pipeline").innerHTML = '<option value="sysmon">sysmon</option>';
+    document.getElementById("backend").innerHTML = '<option value="splunk">Splunk</option>';
+  });
 </script>
 </body>
 </html>
