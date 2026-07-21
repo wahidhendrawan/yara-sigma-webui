@@ -33,9 +33,12 @@ def available_pipelines() -> list[str]:
 
 
 def load_mapping(name: str) -> dict[str, Any]:
-    path = _PIPELINE_DIR / f"{name}.yaml"
-    if not path.exists():
-        raise FileNotFoundError(f"Pipeline '{name}' not found. Available: {available_pipelines()}")
+    if not isinstance(name, str):
+        raise ValueError("Pipeline name must be a string")
+    pipelines = {path.stem: path for path in _PIPELINE_DIR.glob("*.yaml")}
+    path = pipelines.get(name)
+    if path is None:
+        raise FileNotFoundError(f"Pipeline not found. Available: {available_pipelines()}")
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 

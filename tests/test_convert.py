@@ -126,6 +126,17 @@ def test_pipelines_exist():
         assert "mappings" in load_mapping(expected)
 
 
+@pytest.mark.parametrize("pipeline", ("../sysmon", "sysmon/../../etc/passwd", "/etc/passwd"))
+def test_load_mapping_rejects_untrusted_paths(pipeline):
+    with pytest.raises(FileNotFoundError):
+        load_mapping(pipeline)
+
+
+def test_load_mapping_rejects_non_string_name():
+    with pytest.raises(ValueError, match="must be a string"):
+        load_mapping(None)
+
+
 def test_query_fallback_escapes_special_characters(monkeypatch):
     monkeypatch.setattr(backends, "_sigma_cli_available", lambda: False)
     parsed = parse_yara_rule(BASIC)
@@ -149,3 +160,18 @@ def test_api_returns_quality():
     assert payload["quality"]["confidence"] in {"high", "medium", "low"}
     assert payload["parsed"]["patterns"] == 4
     assert payload["query"]
+
+
+def test_api_hides_unexpected_exception_details(monkeypatch):
+    secret = "internal-sensitive-detail"
+
+    def fail_conversion(*args, **kwargs):
+        raise RuntimeError(secret)
+
+    monkeypatch.setattr("app.generate_query", fail_conversion)
+    client = app.test_client()
+    response = client.post("/api/convert", json={"rule": BASIC, "pipeline": "sysmon", "backend": "splunk"})
+    payload = response.get_json()
+    assert response.status_code == 500
+    assert payload == {"error": "Conversion failed"}
+    assert secret not in response.get_data(as_text=True)
