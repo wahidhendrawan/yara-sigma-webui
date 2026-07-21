@@ -80,9 +80,9 @@ def api_convert():
         return _error(str(exc), 400)
     except ValueError as exc:
         return _error(str(exc), 422)
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         app.logger.exception("conversion failed")
-        return _error("Conversion failed", 500, detail=str(exc))
+        return _error("Conversion failed", 500)
 
 
 if __name__ == "__main__":

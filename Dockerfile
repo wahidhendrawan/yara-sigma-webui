@@ -18,7 +18,7 @@ WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
 COPY yar2sig ./yar2sig
-COPY templates ./templates
+COPY static ./static
 COPY samples ./samples
 COPY app.py ./
 
