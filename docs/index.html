@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>yar2sig — YARA to Sigma Converter</title>
+<meta name="description" content="Convert YARA rules into Sigma rules and native SIEM/EDR queries, with IOC classification, MITRE ATT&CK tagging, and a professional web workbench.">
+<style>
+  :root {
+    --bg: #0a0f0d; --card: #101a16; --text: #e6f5ec; --muted: #93b0a1;
+    --accent: #34d399; --accent2: #f59e0b; --border: #1e3a2c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(180deg, #0a0f0d 0%, #0c1512 100%); color: var(--text);
+    line-height: 1.6;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { text-align: center; margin-bottom: 48px; }
+  .badge {
+    display: inline-block; background: var(--card); border: 1px solid var(--border);
+    color: var(--accent); padding: 4px 12px; border-radius: 20px; font-size: 13px;
+    margin-bottom: 16px; font-weight: 600;
+  }
+  h1 { font-size: 2.4rem; margin: 0 0 12px; letter-spacing: -0.02em; }
+  .tagline { color: var(--muted); font-size: 1.15rem; max-width: 640px; margin: 0 auto; }
+  .cta-row { display: flex; gap: 12px; justify-content: center; margin-top: 28px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px;
+    border-radius: 10px; font-weight: 600; text-decoration: none; font-size: 0.95rem;
+    transition: transform 0.15s ease;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-primary { background: var(--accent); color: #05170f; }
+  .btn-secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+  .notice {
+    background: rgba(52, 211, 153, 0.08); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 20px; margin: 32px 0; font-size: 0.92rem; color: var(--muted);
+  }
+  .notice strong { color: var(--text); }
+  section { margin: 56px 0; }
+  h2 { font-size: 1.5rem; margin-bottom: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px 22px;
+  }
+  .card h3 { margin: 0 0 8px; font-size: 1rem; color: var(--accent); }
+  .card p { margin: 0; font-size: 0.92rem; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  code {
+    background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px;
+    font-size: 0.85em; font-family: 'SF Mono', Consolas, monospace;
+  }
+  pre {
+    background: #05100a; border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; overflow-x: auto; font-size: 0.85rem;
+  }
+  .stack-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .tag {
+    background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+    padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; color: var(--muted);
+  }
+  footer { text-align: center; color: var(--muted); font-size: 0.85rem; margin-top: 64px; }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="badge">🔁 Detection Engineering</span>
+    <h1>yar2sig — YARA → Sigma Converter</h1>
+    <p class="tagline">Convert YARA rules into Sigma rules and native SIEM/EDR queries, with automatic IOC classification, MITRE ATT&CK tagging, and a professional web workbench.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/wahidhendrawan/yara-sigma-webui">View on GitHub</a>
+      <a class="btn btn-secondary" href="https://github.com/wahidhendrawan/yara-sigma-webui#-installation">Quick Start</a>
+    </div>
+  </header>
+
+  <div class="notice">
+    <strong>ℹ️ This is a documentation page, not a live demo.</strong> The converter runs as a Flask API with <code>sigma-cli</code> and backend plugins bundled server-side, so it can't run as a static site. Spin it up with Docker in seconds — see below.
+  </div>
+
+  <section>
+    <h2>Features</h2>
+    <div class="grid">
+      <div class="card"><h3>IOC Classification</h3><p>Auto-classifies patterns as URL, IP, hash, email, domain, registry, mutex, and more.</p></div>
+      <div class="card"><h3>MITRE ATT&CK Tagging</h3><p>Technique IDs in YARA meta (e.g. <code>T1059.001</code>) auto-convert to Sigma tags.</p></div>
+      <div class="card"><h3>Configurable Pipelines</h3><p>YAML mapping specs for sysmon, winsec, linux, and proxy log sources — extensible.</p></div>
+      <div class="card"><h3>7 SIEM/EDR Backends</h3><p>Elastic, Splunk, Microsoft Sentinel, QRadar, Carbon Black, SentinelOne, CrowdStrike.</p></div>
+      <div class="card"><h3>Conversion Confidence</h3><p>Every output includes a quality score, warnings, and review-required status.</p></div>
+      <div class="card"><h3>Web Workbench + CLI</h3><p><code>.yar</code> import, pipeline/backend selection, and a full-featured CLI for batch conversion.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Run it locally</h2>
+    <pre><code>git clone https://github.com/wahidhendrawan/yara-sigma-webui.git
+cd yara-sigma-webui
+docker compose up -d --build
+# open http://127.0.0.1:8000</code></pre>
+    <p style="color:var(--muted); font-size:0.9rem;">Or locally with Python: <code>pip install -r requirements.txt && python app.py</code> (dev server on <code>:5000</code>).</p>
+  </section>
+
+  <section>
+    <h2>Supported Backends</h2>
+    <table>
+      <tr><th>Backend</th><th>Conversion</th></tr>
+      <tr><td>Elastic (Lucene/KQL)</td><td>Native via <code>sigma-cli</code></td></tr>
+      <tr><td>Splunk SPL</td><td>Native via <code>sigma-cli</code></td></tr>
+      <tr><td>Microsoft Sentinel / Defender (KQL)</td><td>Native via <code>sigma-cli</code></td></tr>
+      <tr><td>IBM QRadar AQL</td><td>Native via <code>sigma-cli</code></td></tr>
+      <tr><td>VMware Carbon Black</td><td>Fallback query</td></tr>
+      <tr><td>SentinelOne Deep Visibility</td><td>Fallback query</td></tr>
+      <tr><td>CrowdStrike Falcon</td><td>Fallback query</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Tech Stack</h2>
+    <div class="stack-tags">
+      <span class="tag">Python 3.9+</span><span class="tag">Flask</span><span class="tag">gunicorn</span>
+      <span class="tag">sigma-cli</span><span class="tag">Docker</span><span class="tag">pytest</span>
+    </div>
+  </section>
+
+  <footer>
+    Built by <a href="https://github.com/wahidhendrawan">Wahid Hendrawan</a> · GPL-3.0 Licensed · <a href="https://github.com/wahidhendrawan/yara-sigma-webui">Source on GitHub</a>
+  </footer>
+</div>
+</body>
+</html>
