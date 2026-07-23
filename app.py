@@ -23,6 +23,26 @@ app = Flask(__name__)
 MAX_RULE_BYTES = 1_000_000
 
 
+@app.after_request
+def set_security_headers(response):
+    # The SPA is a single self-contained HTML file with inline <script>/<style>
+    # and no third-party resources, so 'unsafe-inline' is required for those
+    # directives here; everything else is locked to same-origin only.
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
+
+
 def _error(message: str, status: int, **extra):
     payload = {"error": message}
     payload.update(extra)
@@ -80,9 +100,9 @@ def api_convert():
         return _error(str(exc), 400)
     except ValueError as exc:
         return _error(str(exc), 422)
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         app.logger.exception("conversion failed")
-        return _error("Conversion failed", 500, detail=str(exc))
+        return _error("Conversion failed", 500)
 
 
 if __name__ == "__main__":
