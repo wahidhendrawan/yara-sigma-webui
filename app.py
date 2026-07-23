@@ -23,6 +23,26 @@ app = Flask(__name__)
 MAX_RULE_BYTES = 1_000_000
 
 
+@app.after_request
+def set_security_headers(response):
+    # The SPA is a single self-contained HTML file with inline <script>/<style>
+    # and no third-party resources, so 'unsafe-inline' is required for those
+    # directives here; everything else is locked to same-origin only.
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
+
+
 def _error(message: str, status: int, **extra):
     payload = {"error": message}
     payload.update(extra)
