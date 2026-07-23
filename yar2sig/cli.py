@@ -77,9 +77,10 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     c = sub.add_parser("convert", help="Convert YARA file/dir to Sigma")
-    c.add_argument("input")
+    c.add_argument("input", help="YARA file (.yar) or directory for bulk import")
     c.add_argument("-p", "--pipeline", default="sysmon")
-    c.add_argument("-o", "--output")
+    c.add_argument("-o", "--output", help="Output directory (required for bulk import)")
+    c.add_argument("--dir", action="store_true", help="Force directory/bulk mode")
     c.add_argument("-v", "--verbose", action="store_true")
     c.set_defaults(func=_convert)
 
