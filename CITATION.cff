@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Hendrawan
+    given-names: Wahid
+title: "yara-sigma-webui"
+version: "3.0.0"
+date-released: "2026-07-23"
+url: "https://github.com/wahidhendrawan/yara-sigma-webui"
+license: MIT
