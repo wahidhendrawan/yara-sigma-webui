@@ -40,9 +40,11 @@ docker compose up -d --build   # → http://127.0.0.1:8000
 - **Configurable pipelines** — YAML mapping specs under `yar2sig/mappings/`
   define how IOCs map to fields for each log source. Ships with **sysmon**,
   **winsec**, **linux**, and **proxy**. Add new ones without touching code.
-- **7 SIEM/EDR backends** — Elastic, Splunk, Microsoft Sentinel/Defender (Kusto),
+- **7 SIEM/EDR backends** — Elastic, Splunk, **Microsoft Sentinel/Defender (KQL)**,
   QRadar, Carbon Black, SentinelOne, CrowdStrike. Uses `sigma-cli` for native
   conversion when installed; otherwise falls back to wildcard queries.
+- **Bulk import** — convert entire YARA rule directories with `--dir` flag
+  (`yar2sig convert dir/ --dir -o sigma-out/`).
 - **Conversion report** — every conversion explains how each pattern was
   classified and mapped.
 - **Conversion confidence** — generated rules include a `x_yar2sig` quality
@@ -146,8 +148,14 @@ python -m yar2sig convert samples/malware.yar -p sysmon
 # Convert a directory of rules into an output folder
 python -m yar2sig convert rules/ -p winsec -o out/ -v
 
+# Bulk import: force directory mode with --dir flag
+python -m yar2sig convert yara-dump/ --dir -p linux -o sigma-output/
+
 # Generate a native Splunk query
 python -m yar2sig query samples/malware.yar -b splunk
+
+# Generate a Microsoft Sentinel KQL query
+python -m yar2sig query samples/malware.yar -b kusto
 ```
 
 If installed via `pip install -e .`, replace `python -m yar2sig` with `yar2sig`.
