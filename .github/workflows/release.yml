@@ -82,7 +82,7 @@ jobs:
           cosign attest --yes --predicate sbom.cyclonedx.json --type cyclonedx "$IMAGE"
 
       - name: Create GitHub Release with SBOM
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.value }}
           name: yar2sig ${{ steps.tag.outputs.value }}
