@@ -12,8 +12,10 @@ RUN pip install -r requirements.txt
 # ---- runtime: copy venv + app, run as non-root ----
 FROM python:3.12-slim AS runtime
 ENV PATH="/opt/venv/bin:$PATH" \
+    HOME=/tmp \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONHASHSEED=random
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv

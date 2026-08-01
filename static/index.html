@@ -166,6 +166,8 @@ const SAMPLES = {
   complex: `rule ComplexCondition {\n  strings:\n    $a1 = "rundll32.exe"\n    $a2 = "regsvr32.exe"\n    $b = /powershell\\\\s+-e(nc)?/ nocase\n  condition:\n    1 of ($a*) and $b\n}`,
   hash: `rule KnownMalwareHash {\n  meta:\n    description = "Detects known malware by hash and path"\n  strings:\n    $h = "44d88612fea8a8f36de82e1278abb02f"\n    $p = "C:\\\\Users\\\\Public\\\\evil.exe"\n  condition:\n    any of them\n}`
 };
+const MAX_RULE_BYTES = 1000000;
+const ALLOWED_FILE_EXTENSION = /\.(yar|yara|txt|rule)$/i;
 let current = 'sigma';
 let lastSigma = '';
 
@@ -198,20 +200,34 @@ function updateCount(){
 function pickFile(){
   document.getElementById('fileInput').click();
 }
+function showError(message){
+  const err = document.getElementById('err');
+  err.textContent = message;
+  err.style.display = 'block';
+}
 function loadFile(file){
+  if(!ALLOWED_FILE_EXTENSION.test(file.name)){
+    showError('Select a YARA or plain-text rule file.');
+    return;
+  }
+  if(file.size > MAX_RULE_BYTES){
+    showError(`Selected file exceeds the ${MAX_RULE_BYTES} byte limit.`);
+    return;
+  }
   const reader = new FileReader();
   reader.onload = () => {
-    document.getElementById('rule').value = String(reader.result || '');
+    const text = String(reader.result || '');
+    if(new Blob([text]).size > MAX_RULE_BYTES){
+      showError(`Selected file exceeds the ${MAX_RULE_BYTES} byte limit.`);
+      return;
+    }
+    document.getElementById('rule').value = text;
     document.getElementById('fileName').textContent = file.name;
     updateCount();
     document.getElementById('status').innerHTML = `<span class="pill good">${esc(file.name)}</span><span class="pill">Loaded</span>`;
   };
-  reader.onerror = () => {
-    const err = document.getElementById('err');
-    err.textContent = 'Failed to read the selected file.';
-    err.style.display = 'block';
-  };
-  reader.readAsText(file);
+  reader.onerror = () => showError('Failed to read the selected file.');
+  reader.readAsText(file, 'UTF-8');
 }
 async function doConvert(){
   const rule = document.getElementById('rule').value;
@@ -261,9 +277,11 @@ function download(){
   if(!lastSigma) return;
   const blob = new Blob([lastSigma], {type:'text/yaml'});
   const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
+  link.href = url;
   link.download = 'converted.sigma.yml';
   link.click();
+  URL.revokeObjectURL(url);
 }
 document.getElementById('rule').addEventListener('input', updateCount);
 document.getElementById('fileInput').addEventListener('change', event => {

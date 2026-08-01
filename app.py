@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import yaml
 from flask import Flask, jsonify, request
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from yar2sig import (
     BACKENDS,
@@ -19,27 +20,42 @@ from yar2sig import (
 from yar2sig.emitter import emit_sigma
 from yar2sig.parser import parse_yara_rule
 
-app = Flask(__name__)
 MAX_RULE_BYTES = 1_000_000
+MAX_REQUEST_BYTES = 1_100_000  # Allow bounded JSON framing around the rule
+MAX_PATTERNS = 500  # Bound worst-case detection blocks per request
+MAX_PATTERN_LENGTH = 10_000  # Bound worst-case pattern size
+
+app = Flask(__name__)
+# Hard body limit enforced up front, including huge Content-Length headers.
+app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BYTES
 
 
 @app.after_request
 def set_security_headers(response):
-    # The SPA is a single self-contained HTML file with inline <script>/<style>
-    # and no third-party resources, so 'unsafe-inline' is required for those
-    # directives here; everything else is locked to same-origin only.
+    # SPA is self-contained with inline styles/scripts and no third-party resources
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
+        "base-uri 'none'; "
+        "object-src 'none'; "
         "script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data:; "
+        "font-src 'self'; "
         "connect-src 'self'; "
+        "form-action 'self'; "
         "frame-ancestors 'none'"
     )
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Permissions-Policy"] = (
+        "accelerometer=(), camera=(), geolocation=(), microphone=(), payment=(), usb=()"
+    )
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+    if request.path == "/api/convert":
+        response.headers["Cache-Control"] = "no-store"
     return response
 
 
@@ -47,6 +63,11 @@ def _error(message: str, status: int, **extra):
     payload = {"error": message}
     payload.update(extra)
     return jsonify(payload), status
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def _handle_request_too_large(_exc: RequestEntityTooLarge):
+    return _error("Request body is too large", 413, limit=MAX_RULE_BYTES)
 
 
 @app.route("/")
@@ -62,25 +83,43 @@ def healthz():
 
 @app.route("/api/convert", methods=["POST"])
 def api_convert():
-    if request.content_length and request.content_length > MAX_RULE_BYTES:
+    if request.content_length and request.content_length > MAX_REQUEST_BYTES:
         return _error("Request body is too large", 413, limit=MAX_RULE_BYTES)
 
     data = request.get_json(silent=True) or {}
     if not isinstance(data, dict):
         return _error("JSON object expected", 400)
 
-    text = (data.get("rule") or "").strip()
-    pipeline = data.get("pipeline") or "sysmon"
-    backend = data.get("backend") or "splunk"
+    raw_rule = data.get("rule", "")
+    pipeline = data.get("pipeline", "sysmon")
+    backend = data.get("backend", "splunk")
+    if raw_rule is None:
+        raw_rule = ""
+    if pipeline is None:
+        pipeline = "sysmon"
+    if backend is None:
+        backend = "splunk"
+    if not isinstance(raw_rule, str):
+        return _error("Rule must be a string", 400)
+    if not isinstance(pipeline, str) or not isinstance(backend, str):
+        return _error("Pipeline and backend must be strings", 400)
+
+    text = raw_rule.strip()
     if not text:
         return _error("No YARA rule provided", 400)
+    if len(text.encode("utf-8")) > MAX_RULE_BYTES:
+        return _error("Rule text exceeds maximum size", 413, limit=MAX_RULE_BYTES)
     if pipeline not in available_pipelines():
         return _error("Unknown mapping pipeline", 400, available=available_pipelines())
     if backend not in BACKENDS:
         return _error("Unknown backend", 400, available=list(BACKENDS))
 
     try:
-        parsed = parse_yara_rule(text)
+        parsed = parse_yara_rule(
+            text,
+            max_patterns=MAX_PATTERNS,
+            max_pattern_length=MAX_PATTERN_LENGTH,
+        )
         rule, report = emit_sigma(parsed, load_mapping(pipeline))
         sigma_yaml = yaml.safe_dump(rule, sort_keys=False, allow_unicode=True)
         query = generate_query(backend, rule, parsed.get("strings", []))
