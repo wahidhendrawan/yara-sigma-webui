@@ -1,4 +1,4 @@
-"""yar2sig — YARA → Sigma conversion library.
+"""yar2sig — YARA <-> Sigma conversion library.
 
 Public API:
     parse_yara_rule(text)        -> parsed dict
@@ -9,6 +9,10 @@ Public API:
     convert(text, pipeline)      -> (sigma_rule, report)  [convenience]
     generate_query(backend, rule, patterns) -> native query
     BACKENDS                     -> dict of supported backends
+
+    convert_sigma_to_yara(sigma_rule) -> (yara_text, report)  [reverse: Sigma -> YARA]
+    convert_sigma_text(yaml_text)     -> [(yara_text, report), ...]
+    convert_sigma_file(path)          -> [(yara_text, report), ...]
 """
 
 from __future__ import annotations
@@ -22,6 +26,12 @@ from .backends import BACKENDS, generate_query
 from .emitter import emit_sigma
 from .ioc import classify_pattern
 from .parser import parse_yara_rule, split_rules
+from .sig2yar import (
+    SigmaConversionError,
+    convert_sigma_file,
+    convert_sigma_text,
+    convert_sigma_to_yara,
+)
 
 __version__ = "3.0.0"
 
@@ -70,4 +80,6 @@ __all__ = [
     "parse_yara_rule", "split_rules", "classify_pattern", "emit_sigma",
     "available_pipelines", "load_mapping", "convert", "convert_all",
     "generate_query", "BACKENDS", "__version__",
+    "convert_sigma_to_yara", "convert_sigma_text", "convert_sigma_file",
+    "SigmaConversionError",
 ]

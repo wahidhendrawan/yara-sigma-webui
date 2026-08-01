@@ -1,0 +1,24 @@
+# CODEOWNERS for yara-sigma-webui
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+*                       @wahidhendrawan
+
+# Core conversion logic
+/yar2sig/               @wahidhendrawan
+/tests/                 @wahidhendrawan
+
+# Web interface
+/app.py                 @wahidhendrawan
+/static/                @wahidhendrawan
+
+# CI, tooling, governance
+/.github/               @wahidhendrawan
+/samples/               @wahidhendrawan
+
+# Core documentation
+/README.md              @wahidhendrawan
+/CONTRIBUTING.md        @wahidhendrawan
+/SECURITY.md            @wahidhendrawan
+/CODE_OF_CONDUCT.md     @wahidhendrawan
+/CHANGELOG.md           @wahidhendrawan
