@@ -33,7 +33,7 @@ from .sig2yar import (
     convert_sigma_to_yara,
 )
 
-__version__ = "3.0.0"
+__version__ = "3.1.0"
 
 _PIPELINE_DIR = Path(__file__).resolve().parent / "mappings"
 
