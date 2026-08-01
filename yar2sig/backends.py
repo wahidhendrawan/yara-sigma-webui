@@ -11,11 +11,11 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import yaml
 
-BACKENDS: dict[str, tuple[str, str, str | None]] = {
+BACKENDS: dict[str, tuple[str, str, Optional[str]]] = {
     "elasticsearch": ("Elastic (Lucene/KQL)", "message", "lucene"),
     "splunk": ("Splunk SPL", "_raw", "splunk"),
     "kusto": ("Microsoft Sentinel / Defender (KQL)", "ProcessCommandLine", "kusto"),
@@ -92,7 +92,7 @@ def generate_query(backend_id: str, sigma_rule: dict[str, Any], patterns: list[s
         return f"# Unknown backend: {backend_id}"
 
     target = BACKENDS[backend_id][2]
-    tmp: str | None = None
+    tmp: Optional[str] = None
     if target and _sigma_cli_available():
         try:
             with tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False) as fh:

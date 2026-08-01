@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Optional
 
 import yaml
 
@@ -72,7 +73,7 @@ def _query(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[list[str]] = None) -> int:
     p = argparse.ArgumentParser(prog="yar2sig", description="YARA -> Sigma converter")
     sub = p.add_subparsers(dest="cmd", required=True)
 

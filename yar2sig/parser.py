@@ -8,7 +8,7 @@ best-effort condition expression. Supports multiple rules per file.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Optional
 
 _RULE_RE = re.compile(r"(?ms)^\s*(?:private\s+|global\s+)*rule\s+[^\{]+\{")
 _NAME_RE = re.compile(r"(?ms)^\s*(?:private\s+|global\s+)*rule\s+([A-Za-z0-9_]+)\s*(?::\s*([^\{]+))?\{")
@@ -60,7 +60,7 @@ def _strip_comments(text: str) -> str:
     return "".join(out)
 
 
-def _find_matching_brace(text: str, brace_start: int) -> int | None:
+def _find_matching_brace(text: str, brace_start: int) -> Optional[int]:
     depth = 0
     in_quote = False
     escaped = False
@@ -164,7 +164,11 @@ def _parse_meta(meta_text: str) -> dict[str, Any]:
     return meta
 
 
-def _parse_strings(strings_text: str) -> list[dict[str, Any]]:
+def _parse_strings(
+    strings_text: str,
+    max_patterns: int,
+    max_pattern_length: int,
+) -> list[dict[str, Any]]:
     declarations: list[dict[str, Any]] = []
     for line in strings_text.splitlines():
         line = line.strip()
@@ -173,7 +177,16 @@ def _parse_strings(strings_text: str) -> list[dict[str, Any]]:
         match = _STRING_DECL_RE.match(line)
         if not match:
             continue
+        if len(declarations) >= max_patterns:
+            raise ValueError(f"Rule exceeds maximum pattern count ({max_patterns})")
+
         ident, raw_value = match.groups()
+        # Avoid decoding or normalizing an already overlong declaration.
+        if len(raw_value) > max_pattern_length + 256:
+            raise ValueError(
+                f"Pattern {ident} exceeds maximum length ({max_pattern_length} chars)"
+            )
+
         kind = "text"
         value = ""
         modifiers: list[str] = []
@@ -195,12 +208,29 @@ def _parse_strings(strings_text: str) -> list[dict[str, Any]]:
         else:
             continue
 
+        if len(value) > max_pattern_length:
+            raise ValueError(
+                f"Pattern {ident} exceeds maximum length ({max_pattern_length} chars)"
+            )
         declarations.append({"id": ident, "value": value, "type": kind, "modifiers": modifiers})
     return declarations
 
 
-def parse_yara_rule(text: str) -> dict[str, Any]:
-    """Parse the first YARA rule found in *text*."""
+def parse_yara_rule(
+    text: str,
+    max_patterns: int = 500,
+    max_pattern_length: int = 10_000,
+) -> dict[str, Any]:
+    """Parse the first YARA rule found in *text*.
+
+    Args:
+        text: YARA rule source code.
+        max_patterns: Maximum number of string patterns to extract (default 500).
+        max_pattern_length: Maximum length of a single pattern (default 10,000).
+
+    Raises:
+        ValueError: If complexity bounds are exceeded.
+    """
     text = _strip_comments(text)
     blocks = split_rules(text)
     if blocks:
@@ -211,7 +241,13 @@ def parse_yara_rule(text: str) -> dict[str, Any]:
     tags = name_match.group(2).split() if (name_match and name_match.group(2)) else []
 
     meta = _parse_meta(_section(text, "meta", ("strings", "condition")))
-    string_entries = _parse_strings(_section(text, "strings", ("condition",)))
+    if max_patterns < 1 or max_pattern_length < 1:
+        raise ValueError("Pattern limits must be positive")
+    string_entries = _parse_strings(
+        _section(text, "strings", ("condition",)),
+        max_patterns=max_patterns,
+        max_pattern_length=max_pattern_length,
+    )
 
     condition_text = _section(text, "condition", ()).strip()
     if not condition_text:

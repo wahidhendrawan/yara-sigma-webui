@@ -1,5 +1,7 @@
 """Tests for yar2sig."""
 
+import json
+
 import pytest
 
 import yar2sig.backends as backends
@@ -137,6 +139,29 @@ def test_load_mapping_rejects_non_string_name():
         load_mapping(None)
 
 
+def test_parser_rejects_too_many_patterns():
+    lines = "\n".join(f'    $s{i} = "v{i}"' for i in range(60))
+    rule = f"rule Big {{\n  strings:\n{lines}\n  condition:\n    any of them\n}}"
+    with pytest.raises(ValueError, match="pattern count"):
+        parse_yara_rule(rule, max_patterns=50)
+
+
+def test_parser_rejects_overlong_pattern():
+    rule = f'rule Long {{\n  strings:\n    $a = "{"A" * 200}"\n  condition:\n    $a\n}}'
+    with pytest.raises(ValueError, match="maximum length"):
+        parse_yara_rule(rule, max_pattern_length=100)
+
+
+def test_parser_rejects_non_positive_limits():
+    with pytest.raises(ValueError, match="must be positive"):
+        parse_yara_rule(BASIC, max_patterns=0)
+
+
+def test_parser_default_limits_allow_basic_rule():
+    parsed = parse_yara_rule(BASIC)
+    assert len(parsed["strings"]) == 4
+
+
 def test_query_fallback_escapes_special_characters(monkeypatch):
     monkeypatch.setattr(backends, "_sigma_cli_available", lambda: False)
     parsed = parse_yara_rule(BASIC)
@@ -175,3 +200,75 @@ def test_api_hides_unexpected_exception_details(monkeypatch):
     assert response.status_code == 500
     assert payload == {"error": "Conversion failed"}
     assert secret not in response.get_data(as_text=True)
+
+
+def test_api_sets_security_headers():
+    client = app.test_client()
+    response = client.get("/healthz")
+    csp = response.headers.get("Content-Security-Policy", "")
+    assert "default-src 'self'" in csp
+    assert "frame-ancestors 'none'" in csp
+    assert "object-src 'none'" in csp
+    assert response.headers.get("X-Content-Type-Options") == "nosniff"
+    assert response.headers.get("X-Frame-Options") == "DENY"
+    assert response.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+    assert response.headers.get("Cross-Origin-Opener-Policy") == "same-origin"
+
+
+def test_api_convert_sets_no_store_cache():
+    client = app.test_client()
+    response = client.post("/api/convert", json={"rule": BASIC, "pipeline": "sysmon", "backend": "splunk"})
+    assert response.headers.get("Cache-Control") == "no-store"
+
+
+def test_api_rejects_non_string_rule():
+    client = app.test_client()
+    response = client.post("/api/convert", json={"rule": 123, "pipeline": "sysmon", "backend": "splunk"})
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Rule must be a string"
+
+
+def test_api_rejects_non_object_json():
+    client = app.test_client()
+    response = client.post(
+        "/api/convert",
+        data="[1, 2, 3]",
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "JSON object expected"
+
+
+def test_api_rejects_oversized_rule_text():
+    client = app.test_client()
+    huge = "rule R {\n  strings:\n    $a = \"" + ("A" * 1_000_050) + "\"\n  condition:\n    $a\n}"
+    response = client.post(
+        "/api/convert",
+        json={"rule": huge, "pipeline": "sysmon", "backend": "splunk"},
+    )
+    assert response.status_code == 413
+    assert response.get_json()["error"] in {"Request body is too large", "Rule text exceeds maximum size"}
+
+
+def test_api_enforces_rule_limit_in_utf8_bytes():
+    client = app.test_client()
+    rule = 'rule R {\n  strings:\n    $a = "' + ("é" * 500_000) + '"\n  condition:\n    $a\n}'
+    body = json.dumps(
+        {"rule": rule, "pipeline": "sysmon", "backend": "splunk"},
+        ensure_ascii=False,
+    ).encode("utf-8")
+    response = client.post("/api/convert", data=body, content_type="application/json")
+    assert response.status_code == 413
+    assert response.get_json()["error"] == "Rule text exceeds maximum size"
+
+
+def test_api_rejects_oversized_body_via_content_length():
+    client = app.test_client()
+    payload = b"x" * 1_200_000
+    response = client.post(
+        "/api/convert",
+        data=payload,
+        content_type="application/json",
+    )
+    assert response.status_code == 413
+    assert response.get_json()["error"] == "Request body is too large"
