@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yar2sig"
-version = "3.0.0"
+version = "3.2.0"
 description = "Convert YARA rules to Sigma rules and native SIEM/EDR queries"
 readme = "README.md"
 license = "GPL-3.0"
@@ -15,7 +15,7 @@ dependencies = ["PyYAML>=6.0.1"]
 
 [project.optional-dependencies]
 web = ["Flask>=3.0"]
-dev = ["pytest>=7.0", "pytest-cov==5.0.0"]
+dev = ["pytest>=7.0", "pytest-cov==7.1.0"]
 prod = ["gunicorn>=23.0"]
 native = [
     "sigma-cli>=1.0",
