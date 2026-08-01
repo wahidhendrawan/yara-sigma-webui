@@ -26,6 +26,7 @@ from . import (
 )
 from .emitter import emit_sigma
 from .parser import parse_yara_rule
+from .progress import ProgressReporter
 
 
 def _convert(args: argparse.Namespace) -> int:
@@ -39,22 +40,34 @@ def _convert(args: argparse.Namespace) -> int:
     if outdir:
         outdir.mkdir(parents=True, exist_ok=True)
 
-    for f in files:
-        results = convert_all(f.read_text(encoding="utf-8"), args.pipeline)
-        for i, (rule, report) in enumerate(results):
-            text = yaml.safe_dump(rule, sort_keys=False, allow_unicode=True)
-            if outdir:
-                suffix = f"_{i + 1}" if len(results) > 1 else ""
-                dest = outdir / f"{f.stem}{suffix}.yml"
-                dest.write_text(text, encoding="utf-8")
-                print(f"[+] {f.name} [{rule['title']}] -> {dest}")
-            else:
-                if i:
-                    print("---")
-                print(text)
-            if args.verbose:
-                for line in report:
-                    print(f"    # {line}", file=sys.stderr)
+    # Show a progress bar for multi-file batch runs. Disable it when the user
+    # asked for --no-progress, or when streaming rules to stdout (no outdir),
+    # since interleaving a bar with YAML output would corrupt the payload.
+    show_progress = (
+        not args.no_progress
+        and outdir is not None
+        and len(files) > 1
+    )
+
+    with ProgressReporter(total=len(files), enabled=show_progress) as bar:
+        for f in files:
+            bar.update(label=f.name)
+            results = convert_all(f.read_text(encoding="utf-8"), args.pipeline)
+            for i, (rule, report) in enumerate(results):
+                text = yaml.safe_dump(rule, sort_keys=False, allow_unicode=True)
+                if outdir:
+                    suffix = f"_{i + 1}" if len(results) > 1 else ""
+                    dest = outdir / f"{f.stem}{suffix}.yml"
+                    dest.write_text(text, encoding="utf-8")
+                    if not show_progress:
+                        print(f"[+] {f.name} [{rule['title']}] -> {dest}")
+                else:
+                    if i:
+                        print("---")
+                    print(text)
+                if args.verbose:
+                    for line in report:
+                        print(f"    # {line}", file=sys.stderr)
     return 0
 
 
@@ -83,6 +96,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     c.add_argument("-o", "--output", help="Output directory (required for bulk import)")
     c.add_argument("--dir", action="store_true", help="Force directory/bulk mode")
     c.add_argument("-v", "--verbose", action="store_true")
+    c.add_argument("--no-progress", action="store_true", help="Disable progress bar for batch runs")
     c.set_defaults(func=_convert)
 
     pp = sub.add_parser("pipelines", help="List available mapping pipelines")
