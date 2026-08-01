@@ -34,7 +34,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
           flags: unittests
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           verbose: true
       - name: Compile sources
         run: python -m compileall app.py yar2sig tests
