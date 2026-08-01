@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/),
 versioning follows [SemVer](https://semver.org/).
 
-## [3.1.0] - 2026-08-01
+## [3.2.0] - 2026-08-01
 
 ### Added
 - **Sigma → YARA reverse converter** — `yar2sig reverse <input> [-o <output>]`
