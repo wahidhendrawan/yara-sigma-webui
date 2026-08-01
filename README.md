@@ -152,6 +152,9 @@ python -m yar2sig convert rules/ -p winsec -o out/ -v
 # Bulk import: force directory mode with --dir flag
 python -m yar2sig convert yara-dump/ --dir -p linux -o sigma-output/
 
+# Machine-readable output for CI/SIEM pipelines (one JSON document)
+python -m yar2sig convert samples/malware.yar --format json > conversion.json
+
 # Generate a native Splunk query
 python -m yar2sig query samples/malware.yar -b splunk
 

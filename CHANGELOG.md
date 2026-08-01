@@ -7,6 +7,10 @@ versioning follows [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **CLI JSON output** — `yar2sig convert --format json` emits a versioned,
+  machine-readable conversion envelope for CI and SIEM pipelines while keeping
+  YAML as the backward-compatible default. JSON directory output writes one
+  result per file.
 - **YARA Sigma Studio refresh** — focused workbench layout with `.yar` import,
   mapping pipeline selector, restored SIEM/EDR query backend selector, and
   dedicated Sigma / Query / Report tabs.

@@ -1,6 +1,7 @@
 """Tests for yar2sig."""
 
 import json
+import yaml
 
 import pytest
 
@@ -13,6 +14,7 @@ from yar2sig import (
     generate_query,
     load_mapping,
 )
+from yar2sig.cli import main as cli_main
 from yar2sig.parser import parse_yara_rule, split_rules
 
 BASIC = """
@@ -272,3 +274,53 @@ def test_api_rejects_oversized_body_via_content_length():
     )
     assert response.status_code == 413
     assert response.get_json()["error"] == "Request body is too large"
+
+
+def test_cli_convert_json_stdout_is_a_single_machine_readable_document(tmp_path, capsys):
+    source = tmp_path / "rules.yar"
+    source.write_text(
+        BASIC + '\nrule Second { strings: $a = "x" condition: $a }\n',
+        encoding="utf-8",
+    )
+
+    assert cli_main(["convert", str(source), "--format", "json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["schema_version"] == "1.0"
+    assert payload["pipeline"] == "sysmon"
+    assert [result["rule"]["title"] for result in payload["results"]] == [
+        "test desc",
+        "Second",
+    ]
+    assert all(result["source"] == str(source) for result in payload["results"])
+    assert all(isinstance(result["report"], list) for result in payload["results"])
+
+
+def test_cli_convert_json_output_writes_one_json_file_per_rule(tmp_path, capsys):
+    source = tmp_path / "rules.yar"
+    output = tmp_path / "converted"
+    source.write_text(
+        BASIC + '\nrule Second { strings: $a = "x" condition: $a }\n',
+        encoding="utf-8",
+    )
+
+    assert cli_main(["convert", str(source), "--format", "json", "-o", str(output)]) == 0
+    files = sorted(output.glob("*.json"))
+
+    assert [file.name for file in files] == ["rules_1.json", "rules_2.json"]
+    assert [json.loads(file.read_text(encoding="utf-8"))["results"][0]["rule"]["title"] for file in files] == [
+        "test desc",
+        "Second",
+    ]
+    assert "->" in capsys.readouterr().out
+
+
+def test_cli_convert_defaults_to_yaml_stdout(tmp_path, capsys):
+    source = tmp_path / "rule.yar"
+    source.write_text(BASIC, encoding="utf-8")
+
+    assert cli_main(["convert", str(source)]) == 0
+    output = capsys.readouterr().out
+
+    assert yaml.safe_load(output)["title"] == "test desc"
+    assert not output.lstrip().startswith("{")
