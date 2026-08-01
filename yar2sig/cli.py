@@ -10,9 +10,10 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import yaml
 
@@ -28,6 +29,15 @@ from .emitter import emit_sigma
 from .parser import parse_yara_rule
 
 
+def _json_envelope(pipeline: str, results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return the stable machine-readable CLI conversion envelope."""
+    return {
+        "schema_version": "1.0",
+        "pipeline": pipeline,
+        "results": results,
+    }
+
+
 def _convert(args: argparse.Namespace) -> int:
     inp = Path(args.input)
     files = list(inp.rglob("*.yar")) + list(inp.rglob("*.yara")) if inp.is_dir() else [inp]
@@ -39,22 +49,44 @@ def _convert(args: argparse.Namespace) -> int:
     if outdir:
         outdir.mkdir(parents=True, exist_ok=True)
 
+    json_results: list[dict[str, Any]] = []
     for f in files:
         results = convert_all(f.read_text(encoding="utf-8"), args.pipeline)
         for i, (rule, report) in enumerate(results):
-            text = yaml.safe_dump(rule, sort_keys=False, allow_unicode=True)
+            result = {
+                "source": str(f),
+                "rule": rule,
+                "report": report,
+            }
+            if args.format == "json":
+                text = json.dumps(
+                    _json_envelope(args.pipeline, [result]),
+                    indent=2,
+                    ensure_ascii=False,
+                ) + "\n"
+                extension = "json"
+            else:
+                text = yaml.safe_dump(rule, sort_keys=False, allow_unicode=True)
+                extension = "yml"
+
             if outdir:
                 suffix = f"_{i + 1}" if len(results) > 1 else ""
-                dest = outdir / f"{f.stem}{suffix}.yml"
+                dest = outdir / f"{f.stem}{suffix}.{extension}"
                 dest.write_text(text, encoding="utf-8")
                 print(f"[+] {f.name} [{rule['title']}] -> {dest}")
+            elif args.format == "json":
+                json_results.append(result)
             else:
                 if i:
                     print("---")
                 print(text)
+
             if args.verbose:
                 for line in report:
                     print(f"    # {line}", file=sys.stderr)
+
+    if args.format == "json" and not outdir:
+        print(json.dumps(_json_envelope(args.pipeline, json_results), indent=2, ensure_ascii=False))
     return 0
 
 
@@ -81,6 +113,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     c.add_argument("input", help="YARA file (.yar) or directory for bulk import")
     c.add_argument("-p", "--pipeline", default="sysmon")
     c.add_argument("-o", "--output", help="Output directory (required for bulk import)")
+    c.add_argument(
+        "--format",
+        choices=("yaml", "json"),
+        default="yaml",
+        help="Output format (default: yaml)",
+    )
     c.add_argument("--dir", action="store_true", help="Force directory/bulk mode")
     c.add_argument("-v", "--verbose", action="store_true")
     c.set_defaults(func=_convert)
