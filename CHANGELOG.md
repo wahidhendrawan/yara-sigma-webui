@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/),
 versioning follows [SemVer](https://semver.org/).
 
+## [3.2.0] - 2026-08-01
+
+### Added
+- **Sigma → YARA reverse converter** — `yar2sig reverse <input> [-o <output>]`
+  converts Sigma rules back into YARA format. Supports single files,
+  multi-document YAML, and batch directory conversion, with `--json` and
+  `--verbose` output. Safely extracts patterns, handles boolean conditions,
+  sanitizes rule names, and reports warnings for unsupported constructs.
+- **Architecture guide** — `docs/architecture.md` documenting components,
+  data flow, and extension points.
+
 ## [Unreleased]
 
 ### Added
