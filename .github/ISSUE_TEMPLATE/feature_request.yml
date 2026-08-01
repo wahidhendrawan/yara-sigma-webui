@@ -1,0 +1,59 @@
+name: Feature request
+description: Propose an improvement to yar2sig
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please propose focused improvements to YARA-to-Sigma conversion, its supported interfaces, or project usability. Do not disclose vulnerabilities or sensitive indicators in public issues.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the user need or limitation, including who is affected.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Explain the desired behavior, interface, or example workflow.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe workarounds or other approaches you evaluated.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Relevant area
+      options:
+        - Python library
+        - CLI
+        - Web UI or API
+        - Docker image or Compose
+        - Mapping pipeline
+        - Backend query generation
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add safe examples, references, screenshots, or implementation ideas. Redact sensitive data.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I did not include credentials, private rules, or sensitive indicators.
+          required: true

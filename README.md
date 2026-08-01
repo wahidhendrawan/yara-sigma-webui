@@ -6,7 +6,8 @@
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/docker-compose%20ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![Backends](https://img.shields.io/badge/SIEM%2FEDR%20backends-7-6366f1)](#-supported-backends)
-[![Tests](https://img.shields.io/badge/tests-11%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
+[![Coverage](https://codecov.io/gh/wahidhendrawan/yara-sigma-webui/branch/main/graph/badge.svg)](https://codecov.io/gh/wahidhendrawan/yara-sigma-webui)
 [![Version](https://img.shields.io/badge/version-3.0.0-informational)](pyproject.toml)
 
 Convert **YARA rules** into **Sigma rules** and **native SIEM/EDR queries** —
@@ -229,8 +230,10 @@ Install `sigma-cli` + the relevant backend plugin for native conversion.
 
 ```bash
 pip install -e ".[web,dev]"
-pytest -q
+pytest -q --cov=yar2sig --cov-report=term
 ```
+
+The test suite enforces a 70% branch-coverage floor for `yar2sig`.
 
 The repository includes GitHub Actions CI for Python 3.9 and 3.12, plus a Docker
 image build check.

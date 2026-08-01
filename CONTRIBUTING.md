@@ -33,6 +33,12 @@ templates/      # YARA Sigma Studio UI
 tests/          # pytest suite
 ```
 
+## Before contributing
+
+- Search existing issues and pull requests before opening a new one.
+- For security vulnerabilities, follow [SECURITY.md](SECURITY.md) instead of opening an issue.
+- Follow the [Code of Conduct](CODE_OF_CONDUCT.md). Do not include secrets, private YARA rules, or other sensitive indicators in issues, tests, or pull requests.
+
 ## How to contribute
 
 ### Add a mapping pipeline
@@ -67,9 +73,11 @@ rule-management scope unless it is backed by tests and documentation.
 
 1. Fork and branch from `main`.
 2. Make your change + tests.
-3. Ensure `pytest -q` passes and `docker build .` succeeds.
-4. Open a PR describing the change. CI runs tests, a CLI smoke test, and a
-   Docker build/healthcheck automatically.
+3. Ensure `pytest -q --cov=yar2sig` passes and `docker build .` succeeds.
+4. Update `README.md` or `CHANGELOG.md` when user-facing behavior changes.
+5. Open a PR describing the problem, solution, testing, and any security or compatibility impact. CI runs tests, coverage, a CLI smoke test, and a Docker build/healthcheck automatically.
+
+Keep commits focused. Pull requests should be reviewable and should not mix unrelated formatting or generated files into a functional change.
 
 ## Reporting issues
 
