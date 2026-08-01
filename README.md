@@ -57,7 +57,10 @@ docker compose up -d --build   # → http://127.0.0.1:8000
   tabs, confidence metrics, copy/download actions, sample rules, and
   `Ctrl+Enter` conversion.
 - **CLI** — convert single files or whole directories; list pipelines; generate
-  backend queries.
+  backend queries; reverse-convert Sigma YAML to best-effort YARA.
+- **Sigma → YARA reverse conversion** — safe scalar extraction, escaped text and
+  regex patterns, bounded output, explicit approximation reports, and YAML
+  stream support.
 - **Docker-Compose-ready** — hardened container (non-root, read-only FS,
   dropped capabilities, resource limits) running gunicorn, with `sigma-cli`
   and backend plugins baked in.
@@ -160,13 +163,46 @@ python -m yar2sig query samples/malware.yar -b splunk
 
 # Generate a Microsoft Sentinel KQL query
 python -m yar2sig query samples/malware.yar -b kusto
+
+# Reverse: Convert Sigma YAML to YARA (best-effort)
+python -m yar2sig reverse sigma-rule.yml -o yara-out/
+
+# Reverse: Convert a directory of Sigma rules to YARA
+python -m yar2sig reverse sigma-rules/ -o yara-out/
+
+# Reverse: JSON format with conversion report
+python -m yar2sig reverse sigma-rule.yml --format json
+
+# Reverse: Verbose mode shows warnings
+python -m yar2sig reverse sigma-rule.yml -v
+
+# Reverse: Omit conversion warnings from YARA output
+python -m yar2sig reverse sigma-rule.yml --no-comments
 ```
 
 If installed via `pip install -e .`, replace `python -m yar2sig` with `yar2sig`.
 
+### 🔄 Reverse Conversion (Sigma → YARA)
+
+The `reverse` command provides **best-effort** Sigma-to-YARA conversion. Since Sigma describes **log events** and YARA scans **bytes**, conversion is inherently approximate. The converter:
+
+- ✅ Extracts scalar/list detection values into escaped YARA strings or regex patterns
+- ✅ Preserves basic `any`/`all`/`and`/`or` condition semantics where representable
+- ✅ Sanitizes identifiers and enforces pattern limits (500 patterns, 10KB per pattern)
+- ✅ Supports Sigma wildcards (`*`, `?`) → YARA regex conversion
+- ✅ Handles `|re`, `|cased`, `|utf16`, `|wide`, and other modifiers
+- ⚠️ Emits explicit warnings for approximations, unsupported features, and skipped values
+- ⚠️ Adds conversion report as comments in YARA output (disable with `--no-comments`)
+- ❌ Skips unsupported modifiers (`|cidr`, `|fieldref`, comparisons)
+- ❌ Cannot represent negation, field references, or complex Sigma transformations
+
+**Always review generated YARA rules before deployment.** The converter never silently claims exact equivalence.
+
 ---
 
 ## 🧩 Library API
+
+### YARA → Sigma
 
 ```python
 from yar2sig import convert, generate_query, available_pipelines
@@ -178,6 +214,54 @@ print(available_pipelines())   # ['linux', 'proxy', 'sysmon', 'winsec']
 from yar2sig.parser import parse_yara_rule
 parsed = parse_yara_rule(open("rule.yar").read())
 print(generate_query("splunk", sigma_rule, parsed["strings"]))
+```
+
+### Sigma → YARA (Reverse)
+
+```python
+from yar2sig import convert_sigma_to_yara, convert_sigma_text, convert_sigma_file
+
+# Convert a single parsed Sigma rule
+sigma_rule = {
+    "title": "Suspicious Process",
+    "detection": {
+        "selection": {"CommandLine": "powershell.exe -enc"},
+        "condition": "selection"
+    }
+}
+yara_source, report = convert_sigma_to_yara(sigma_rule)
+print(yara_source)
+for warning in report:
+    print(f"  {warning}")
+
+# Convert YAML text (supports multiple documents)
+yaml_text = open("sigma-rules.yml").read()
+results = convert_sigma_text(yaml_text)
+for yara_source, report in results:
+    print(yara_source)
+
+# Convert from file
+results = convert_sigma_file("rule.yml")
+yara_source, report = results[0]
+
+# Control limits and comments
+yara_source, report = convert_sigma_to_yara(
+    sigma_rule,
+    max_patterns=100,           # default: 500
+    max_pattern_length=5000,    # default: 10000 bytes
+    include_comments=False      # default: True
+)
+```
+
+**Exception handling:**
+
+```python
+from yar2sig import SigmaConversionError
+
+try:
+    results = convert_sigma_text(user_input)
+except SigmaConversionError as e:
+    print(f"Invalid Sigma rule: {e}")
 ```
 
 ---

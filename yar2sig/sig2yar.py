@@ -1,292 +1,495 @@
-"""Sigma-to-YARA reverse converter (best-effort).
+"""Best-effort Sigma-to-YARA conversion.
 
-This module provides a production-quality, best-effort conversion from Sigma
-rules to YARA rules. Since YARA and Sigma have fundamentally different
-semantics (YARA matches byte patterns in files/memory; Sigma matches log
-fields), this converter extracts string patterns from Sigma detection
-selections and emits approximate YARA rules with explicit warnings.
-
-Public API:
-    convert_sigma_to_yara(sigma_rule, **opts) -> (yara_text, report)
-    convert_sigma_file(path, **opts)          -> list[(yara_text, report)]
-    convert_sigma_text(yaml_text, **opts)     -> list[(yara_text, report)]
+Sigma describes log events while YARA scans bytes. Conversion therefore cannot
+be generally exact. This module converts safe scalar/list detection values,
+preserves basic boolean selection semantics where possible, and reports every
+approximation that needs analyst review.
 """
 
 from __future__ import annotations
 
+import datetime
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, Union
+from typing import Any, Iterable, Optional, Union
 
 import yaml
-
-__all__ = [
-    "convert_sigma_to_yara",
-    "convert_sigma_file",
-    "convert_sigma_text",
-    "SigmaConversionError",
-]
-
-# ---------------------------------------------------------------------------
-# Constants and limits
-# ---------------------------------------------------------------------------
 
 MAX_PATTERNS = 500
 MAX_PATTERN_LENGTH = 10_000
 MAX_RULE_NAME_LENGTH = 128
-RESERVED_YARA_KEYWORDS = frozenset({
-    "all", "and", "any", "ascii", "at", "base64", "base64wide", "condition",
-    "contains", "endswith", "entrypoint", "false", "filesize", "for",
-    "fullword", "global", "import", "icontains", "iendswith", "iequals",
-    "in", "include", "int16", "int16be", "int32", "int32be", "int8", "int8be",
-    "istartswith", "matches", "meta", "nocase", "none", "not", "of", "or",
-    "private", "rule", "startswith", "strings", "them", "true", "uint16",
-    "uint16be", "uint32", "uint32be", "uint8", "uint8be", "wide", "xor",
-    "defined",
-})
+
+_YARA_RESERVED = frozenset(
+    {
+        "all", "and", "any", "ascii", "at", "condition", "contains",
+        "endswith", "entrypoint", "false", "filesize", "for", "fullword",
+        "global", "import", "in", "include", "matches", "meta", "nocase",
+        "none", "not", "of", "or", "private", "rule", "startswith",
+        "strings", "them", "true", "wide", "xor",
+    }
+)
+_UNREPRESENTABLE_MODIFIERS = {
+    "cidr", "exists", "fieldref", "gt", "gte", "lt", "lte",
+}
+_SCALAR_TYPES = (str, int, float, bool)
 
 
-class SigmaConversionError(Exception):
-    """Raised when Sigma rule cannot be converted."""
+class SigmaConversionError(ValueError):
+    """Raised when Sigma input is invalid or cannot be safely processed."""
 
 
-# ---------------------------------------------------------------------------
-# Identifier and string sanitization
-# ---------------------------------------------------------------------------
-
-def _sanitize_yara_identifier(name: str, max_length: int = MAX_RULE_NAME_LENGTH) -> str:
-    """Convert a string to a valid YARA identifier.
-    
-    YARA identifiers must:
-    - Start with a letter or underscore
-    - Contain only letters, digits, underscores
-    - Not be a reserved keyword
-    """
-    if not name:
-        return "_unnamed"
-    
-    # Replace invalid characters with underscore
-    s = re.sub(r'[^a-zA-Z0-9_]', '_', str(name))
-    
-    # Collapse multiple underscores
-    s = re.sub(r'_+', '_', s)
-    
-    # Ensure starts with letter or underscore
-    if s and s[0].isdigit():
-        s = '_' + s
-    
-    # Truncate if too long
-    if len(s) > max_length:
-        s = s[:max_length]
-    
-    # Handle reserved keywords
-    if s.lower() in RESERVED_YARA_KEYWORDS:
-        s = s + '_rule'
-    
-    return s if s else '_unnamed'
+@dataclass(frozen=True)
+class _Pattern:
+    identifier: str
+    value: str
+    kind: str
+    modifiers: tuple[str, ...]
 
 
-def _escape_yara_string(text: str) -> str:
-    """Escape a string for use in a YARA text pattern."""
-    result = []
-    for ch in text:
-        if ch == '\\':
-            result.append('\\\\')
-        elif ch == '"':
-            result.append('\\"')
-        elif ch == '\n':
-            result.append('\\n')
-        elif ch == '\r':
-            result.append('\\r')
-        elif ch == '\t':
-            result.append('\\t')
-        elif ord(ch) < 32 or ord(ch) > 126:
-            # Non-printable: use hex escape
-            result.append(f'\\x{ord(ch):02x}')
+def _warn(report: list[str], message: str) -> None:
+    warning = f"WARNING: {message}"
+    if warning not in report:
+        report.append(warning)
+
+
+def _sanitize_identifier(value: Any, max_length: int = MAX_RULE_NAME_LENGTH) -> str:
+    text = re.sub(r"[^A-Za-z0-9_]", "_", str(value or ""))
+    text = re.sub(r"_+", "_", text).strip("_") or "unnamed"
+    if text[0].isdigit():
+        text = "_" + text
+    text = text[:max_length]
+    if text.lower() in _YARA_RESERVED:
+        text = (text[: max_length - 5] + "_rule") if max_length > 5 else "_rule"
+    return text
+
+
+def _escape_yara_text(value: str) -> str:
+    """Escape text as printable ASCII plus UTF-8 byte escapes."""
+    output: list[str] = []
+    for byte in value.encode("utf-8"):
+        if byte == 0x22:
+            output.append(r'\"')
+        elif byte == 0x5C:
+            output.append(r"\\")
+        elif byte == 0x09:
+            output.append(r"\t")
+        elif byte == 0x0A:
+            output.append(r"\n")
+        elif byte == 0x0D:
+            output.append(r"\r")
+        elif 0x20 <= byte <= 0x7E:
+            output.append(chr(byte))
         else:
-            result.append(ch)
-    return ''.join(result)
+            output.append(f"\\x{byte:02x}")
+    return "".join(output)
 
 
-def _sigma_regex_to_yara_regex(pattern: str) -> tuple[str, list[str]]:
-    """Convert Sigma regex pattern to YARA regex.
-    
-    Returns (converted_pattern, warnings).
-    Sigma uses RE2-style regex; YARA uses a limited subset.
-    """
-    warnings = []
-    
-    # YARA regex is delimited by /.../ so we need to escape internal /
-    converted = pattern.replace('/', '\\/')
-    
-    # Sigma wildcards in regex context
-    if '*' in pattern and '.*' not in pattern:
-        warnings.append(f"Wildcard '*' in pattern may need review: {pattern[:50]}")
-    
-    # Lookahead/lookbehind not supported in YARA
-    if re.search(r'\(\?[=!<]', pattern):
-        warnings.append(f"Lookahead/lookbehind not supported in YARA regex: {pattern[:50]}")
-    
-    return converted, warnings
+def _escape_comment(value: str) -> str:
+    return value.replace("*/", "* /").replace("\r", " ").replace("\n", " ")
 
 
-def _sigma_wildcard_to_yara(value: str) -> tuple[str, str, list[str]]:
-    """Convert Sigma wildcard pattern to YARA pattern.
-    
-    Returns (pattern, pattern_type, warnings).
-    pattern_type is 'text' or 'regex'.
-    
-    Sigma wildcards:
-    - * matches any characters
-    - ? matches single character
-    """
-    warnings = []
-    
-    has_wildcard = '*' in value or '?' in value
-    
-    if not has_wildcard:
-        return value, 'text', warnings
-    
-    # Convert to regex
-    regex_parts = []
+def _wildcard_regex(value: str) -> Optional[str]:
+    """Return a YARA regex for a Sigma wildcard string, or None if literal."""
+    result: list[str] = []
+    wildcard = False
     i = 0
     while i < len(value):
-        ch = value[i]
-        if ch == '*':
-            regex_parts.append('.*')
-        elif ch == '?':
-            regex_parts.append('.')
-        elif ch in r'\.[]{}()+^$|':
-            regex_parts.append('\\' + ch)
+        char = value[i]
+        if char == "\\" and i + 1 < len(value) and value[i + 1] in "*?":
+            result.append(re.escape(value[i + 1]))
+            i += 2
+            continue
+        if char == "*":
+            result.append(".*")
+            wildcard = True
+        elif char == "?":
+            result.append(".")
+            wildcard = True
         else:
-            regex_parts.append(ch)
+            result.append(re.escape(char))
         i += 1
-    
-    warnings.append(f"Wildcard pattern converted to regex: {value[:50]}")
-    return ''.join(regex_parts), 'regex', warnings
+    return "".join(result) if wildcard else None
 
 
-# ---------------------------------------------------------------------------
-# Detection extraction
-# ---------------------------------------------------------------------------
+def _prepare_regex(value: str, report: list[str], source: str) -> Optional[str]:
+    unsupported = (
+        r"\(\?[=!<]",       # lookaround/lookbehind
+        r"\(\?P",           # named groups
+        r"\\[1-9]",         # backreferences
+        r"\(\?\(",          # conditionals
+        r"\*\+|\+\+|\?\+", # possessive quantifiers
+    )
+    if any(re.search(pattern, value) for pattern in unsupported):
+        _warn(report, f"regex from '{source}' uses syntax unsupported by YARA and was skipped")
+        return None
+    try:
+        re.compile(value)
+    except re.error as exc:
+        _warn(report, f"invalid regex from '{source}' was skipped ({exc})")
+        return None
 
-def _extract_values_from_selection(
-    selection: Any,
-    field_path: str = "",
-) -> Iterator[tuple[str, str, Any]]:
-    """Recursively extract string values from a Sigma selection.
-    
-    Yields (field_name, modifier, value) tuples.
-    """
-    if selection is None:
-        return
-    
-    if isinstance(selection, str):
-        yield (field_path, "", selection)
-        return
-    
-    if isinstance(selection, (int, float, bool)):
-        yield (field_path, "", str(selection))
-        return
-    
-    if isinstance(selection, list):
-        for item in selection:
-            yield from _extract_values_from_selection(item, field_path)
-        return
-    
-    if isinstance(selection, dict):
-        for key, value in selection.items():
-            # Parse field|modifier syntax
-            if '|' in key:
-                parts = key.split('|')
-                field = parts[0]
-                modifier = '|'.join(parts[1:])
+    output: list[str] = []
+    escaped = False
+    for char in value:
+        if char in "\r\n":
+            output.append(f"\\x{ord(char):02x}")
+            escaped = False
+        elif char == "/" and not escaped:
+            output.append(r"\/")
+            escaped = False
+        elif ord(char) > 0x7E:
+            output.extend(f"\\x{byte:02x}" for byte in char.encode("utf-8"))
+            escaped = False
+        else:
+            output.append(char)
+            if char == "\\":
+                escaped = not escaped
             else:
-                field = key
-                modifier = ""
-            
-            child_path = f"{field_path}.{field}" if field_path else field
-            
-            if isinstance(value, list):
-                for item in value:
-                    yield (child_path, modifier, item)
-            elif isinstance(value, dict):
-                # Nested structure - recurse
-                yield from _extract_values_from_selection(value, child_path)
+                escaped = False
+    return "".join(output)
+
+
+class _Builder:
+    def __init__(self, max_patterns: int, max_pattern_length: int, report: list[str]) -> None:
+        self.max_patterns = max_patterns
+        self.max_pattern_length = max_pattern_length
+        self.report = report
+        self.patterns: list[_Pattern] = []
+        self._selection_ids: dict[str, str] = {}
+        self._used_ids: set[str] = set()
+        self.limit_reached = False
+
+    def selection_id(self, name: str) -> str:
+        if name in self._selection_ids:
+            return self._selection_ids[name]
+        base = _sanitize_identifier(name, 32)
+        candidate = base
+        suffix = 2
+        while candidate.lower() in self._used_ids:
+            trailer = f"_{suffix}"
+            candidate = base[: 32 - len(trailer)] + trailer
+            suffix += 1
+        self._selection_ids[name] = candidate
+        self._used_ids.add(candidate.lower())
+        return candidate
+
+    def add(self, selection: str, field: str, modifiers: set[str], value: Any) -> Optional[str]:
+        source = f"{selection}.{field}" if field else selection
+        if value is None:
+            _warn(self.report, f"null value in '{source}' cannot become a YARA pattern and was skipped")
+            return None
+        if not isinstance(value, _SCALAR_TYPES):
+            _warn(self.report, f"non-scalar value in '{source}' was skipped")
+            return None
+        if self.limit_reached:
+            return None
+        if len(self.patterns) >= self.max_patterns:
+            self.limit_reached = True
+            _warn(self.report, f"pattern limit ({self.max_patterns}) reached; remaining values were skipped")
+            return None
+
+        text = str(value)
+        if not text:
+            _warn(self.report, f"empty value in '{source}' was skipped")
+            return None
+        byte_length = len(text.encode("utf-8"))
+        if byte_length > self.max_pattern_length:
+            _warn(
+                self.report,
+                f"pattern from '{source}' exceeds {self.max_pattern_length} UTF-8 bytes and was skipped",
+            )
+            return None
+        if not isinstance(value, str):
+            _warn(self.report, f"non-string scalar from '{source}' was converted to text")
+
+        blocked = modifiers.intersection(_UNREPRESENTABLE_MODIFIERS)
+        if blocked:
+            _warn(
+                self.report,
+                f"modifier(s) {', '.join(sorted(blocked))} on '{source}' cannot be represented and the value was skipped",
+            )
+            return None
+
+        unknown = modifiers.difference(
+            {
+                "all", "ascii", "base64", "base64offset", "base64wide",
+                "cased", "contains", "endswith", "expand", "iendswith",
+                "re", "startswith", "utf16", "utf16be", "utf16le", "wide",
+                "windash",
+            }
+        )
+        if unknown:
+            _warn(
+                self.report,
+                f"modifier(s) {', '.join(sorted(unknown))} on '{source}' were ignored",
+            )
+        for approximate in modifiers.intersection(
+            {"base64", "base64offset", "base64wide", "expand", "utf16be", "windash"}
+        ):
+            _warn(self.report, f"modifier '{approximate}' on '{source}' is only approximated")
+
+        kind = "text"
+        pattern_value = text
+        if "re" in modifiers:
+            prepared = _prepare_regex(text, self.report, source)
+            if prepared is None:
+                return None
+            pattern_value = prepared
+            kind = "regex"
+        else:
+            wildcard = _wildcard_regex(text)
+            if wildcard is not None:
+                prepared = _prepare_regex(wildcard, self.report, source)
+                if prepared is None:
+                    return None
+                pattern_value = prepared
+                kind = "regex"
+                _warn(self.report, f"Sigma wildcards from '{source}' were converted to a YARA regex")
+
+        yara_modifiers: list[str] = []
+        if "cased" not in modifiers:
+            yara_modifiers.append("nocase")
+        if "utf16" in modifiers or "utf16le" in modifiers or "wide" in modifiers:
+            yara_modifiers.append("wide")
+        elif "utf16be" in modifiers:
+            yara_modifiers.append("wide")
+        else:
+            yara_modifiers.extend(("ascii", "wide"))
+
+        selection_id = self.selection_id(selection)
+        identifier = f"$s_{selection_id}_{len(self.patterns) + 1}"
+        self.patterns.append(
+            _Pattern(identifier, pattern_value, kind, tuple(yara_modifiers))
+        )
+        return identifier
+
+
+def _modifier_parts(field: str) -> tuple[str, set[str]]:
+    parts = field.split("|")
+    return parts[0], {part.lower() for part in parts[1:] if part}
+
+
+def _join(expressions: Iterable[str], operator: str) -> Optional[str]:
+    values = [value for value in expressions if value]
+    if not values:
+        return None
+    if len(values) == 1:
+        return values[0]
+    return "(" + f" {operator} ".join(values) + ")"
+
+
+def _mapping_expression(
+    selection_name: str,
+    mapping: dict[Any, Any],
+    builder: _Builder,
+) -> Optional[str]:
+    field_expressions: list[str] = []
+    for raw_field, raw_value in mapping.items():
+        if not isinstance(raw_field, str):
+            _warn(builder.report, f"non-string field key in selection '{selection_name}' was skipped")
+            continue
+        field, modifiers = _modifier_parts(raw_field)
+        values = raw_value if isinstance(raw_value, list) else [raw_value]
+        identifiers: list[str] = []
+        for value in values:
+            if isinstance(value, (dict, list, tuple, set)):
+                _warn(
+                    builder.report,
+                    f"nested value in '{selection_name}.{field}' was skipped instead of being stringified",
+                )
+                continue
+            identifier = builder.add(selection_name, field, modifiers, value)
+            if identifier:
+                identifiers.append(identifier)
+        operator = "and" if "all" in modifiers else "or"
+        expression = _join(identifiers, operator)
+        if expression:
+            field_expressions.append(expression)
+    # Fields in a Sigma selection mapping are ANDed.
+    return _join(field_expressions, "and")
+
+
+def _selection_expression(name: str, value: Any, builder: _Builder) -> Optional[str]:
+    if isinstance(value, dict):
+        return _mapping_expression(name, value, builder)
+    if isinstance(value, list):
+        alternatives: list[str] = []
+        for item in value:
+            if isinstance(item, dict):
+                expression = _mapping_expression(name, item, builder)
+                if expression:
+                    alternatives.append(expression)
+            elif isinstance(item, list):
+                _warn(builder.report, f"nested list in selection '{name}' was skipped")
             else:
-                yield (child_path, modifier, value)
-        return
+                identifier = builder.add(name, "", set(), item)
+                if identifier:
+                    alternatives.append(identifier)
+        return _join(alternatives, "or")
+    identifier = builder.add(name, "", set(), value)
+    return identifier
 
 
-def _parse_sigma_condition(condition: str) -> tuple[str, list[str]]:
-    """Parse Sigma condition to determine YARA condition type.
-    
-    Returns (yara_condition_type, warnings).
-    yara_condition_type is 'all', 'any', or a specific expression.
-    """
-    warnings = []
-    condition_lower = condition.lower().strip()
-    
-    # Simple cases
-    if not condition:
-        return 'any', ["No condition specified, defaulting to 'any of them'"]
-    
-    # Check for "all of" patterns
-    if re.search(r'\ball\s+of\s+(them|\w+\*?)\b', condition_lower):
-        return 'all', []
-    
-    # Check for "any of" or "1 of" patterns
-    if re.search(r'\b(any|1)\s+of\s+(them|\w+\*?)\b', condition_lower):
-        return 'any', []
-    
-    # Check for N of patterns
-    n_of_match = re.search(r'\b(\d+)\s+of\s+(them|\w+\*?)\b', condition_lower)
-    if n_of_match:
-        n = int(n_of_match.group(1))
-        warnings.append(f"'{n} of' condition approximated; YARA will use '{n} of them'")
-        return f'{n}_of', warnings
-    
-    # "selection" or single identifier typically means all
-    if re.fullmatch(r'\w+', condition_lower):
-        return 'all', []
-    
-    # Complex boolean logic
-    if ' and ' in condition_lower and ' or ' not in condition_lower:
-        return 'all', []
-    
-    if ' or ' in condition_lower and ' and ' not in condition_lower:
-        return 'any', []
-    
-    # Mixed logic - can't represent exactly
-    if ' and ' in condition_lower and ' or ' in condition_lower:
-        warnings.append(
-            f"Complex condition '{condition}' cannot be exactly represented; "
-            "using 'any of them' as safe approximation"
+def _selection_matches(pattern: str, names: Iterable[str]) -> list[str]:
+    regex = re.compile("^" + re.escape(pattern).replace(r"\*", ".*") + "$")
+    return [name for name in names if regex.match(name)]
+
+
+def _quantified_condition(
+    condition: str,
+    expressions: dict[str, str],
+    report: list[str],
+) -> Optional[str]:
+    match = re.fullmatch(r"(?i)(all|any|\d+)\s+of\s+(them|[^\s]+)", condition.strip())
+    if not match:
+        return None
+    quantity, target = match.groups()
+    names = list(expressions)
+    selected = names if target.lower() == "them" else _selection_matches(target, names)
+    if not selected:
+        _warn(report, f"condition target '{target}' matched no usable selection")
+        return "false"
+    values = [expressions[name] for name in selected]
+    if quantity.lower() == "all":
+        return _join(values, "and")
+    if quantity.lower() == "any" or quantity == "1":
+        return _join(values, "or")
+    requested = int(quantity)
+    if requested > len(values):
+        _warn(
+            report,
+            f"'{quantity} of {target}' exceeds the number of usable selections and was converted to false",
         )
-        return 'any', warnings
-    
-    # "not" conditions
-    if condition_lower.startswith('not ') or ' not ' in condition_lower:
-        warnings.append(
-            f"Negation in condition '{condition}' not supported; "
-            "emitting positive match only"
-        )
-        return 'any', warnings
-    
-    # Filter expressions
-    if '|' in condition:
-        warnings.append(
-            f"Filter expression in condition '{condition}' not supported; "
-            "using 'any of them'"
-        )
-        return 'any', warnings
-    
-    return 'any', [f"Condition '{condition}' not fully parsed; defaulting to 'any of them'"]
+        return "false"
+    if requested == len(values):
+        return _join(values, "and")
+    _warn(
+        report,
+        f"'{quantity} of {target}' cannot be exactly applied to compound selections; using any matching selection",
+    )
+    return _join(values, "or")
 
 
-# ---------------------------------------------------------------------------
-# Main conversion
-# ---------------------------------------------------------------------------
+def _boolean_condition(
+    condition: str,
+    expressions: dict[str, str],
+    report: list[str],
+) -> Optional[str]:
+    token_re = re.compile(r"\s*(\(|\)|(?i:and|or|not)(?=\s|\(|\)|$)|[^\s()]+)")
+    tokens = token_re.findall(condition)
+    if not tokens or "".join(tokens).replace("(", "").replace(")", "") == "":
+        return None
+    position = 0
+
+    def parse_primary() -> str:
+        nonlocal position
+        if position >= len(tokens):
+            raise ValueError("unexpected end")
+        token = tokens[position]
+        if token == "(":
+            position += 1
+            value = parse_or()
+            if position >= len(tokens) or tokens[position] != ")":
+                raise ValueError("missing closing parenthesis")
+            position += 1
+            return value
+        if token.lower() == "not":
+            raise ValueError("negation is not safely representable")
+        position += 1
+        if token not in expressions:
+            raise ValueError(f"unknown or unusable selection '{token}'")
+        return expressions[token]
+
+    def parse_and() -> str:
+        nonlocal position
+        values = [parse_primary()]
+        while position < len(tokens) and tokens[position].lower() == "and":
+            position += 1
+            values.append(parse_primary())
+        return _join(values, "and") or "false"
+
+    def parse_or() -> str:
+        nonlocal position
+        values = [parse_and()]
+        while position < len(tokens) and tokens[position].lower() == "or":
+            position += 1
+            values.append(parse_and())
+        return _join(values, "or") or "false"
+
+    try:
+        result = parse_or()
+        if position != len(tokens):
+            raise ValueError(f"unexpected token '{tokens[position]}'")
+        return result
+    except ValueError as exc:
+        _warn(report, f"condition '{condition}' was not preserved ({exc})")
+        return None
+
+
+def _condition_expression(
+    raw_condition: Any,
+    expressions: dict[str, str],
+    report: list[str],
+) -> str:
+    if not expressions:
+        return "false"
+    conditions = raw_condition if isinstance(raw_condition, list) else [raw_condition]
+    converted: list[str] = []
+    for raw in conditions:
+        if not isinstance(raw, str) or not raw.strip():
+            _warn(report, "missing or non-string condition; using any usable selection")
+            continue
+        expression = _quantified_condition(raw, expressions, report)
+        if expression is None:
+            expression = _boolean_condition(raw, expressions, report)
+        if expression is not None:
+            converted.append(expression)
+    if converted:
+        if len(converted) > 1:
+            _warn(report, "multiple Sigma conditions were combined with OR")
+        return _join(converted, "or") or "false"
+    _warn(report, "condition was approximated as any usable selection")
+    return _join(expressions.values(), "or") or "false"
+
+
+def _metadata(rule: dict[str, Any], report: list[str]) -> list[tuple[str, str]]:
+    output: list[tuple[str, str]] = []
+    fields = (
+        ("description", "description", 500),
+        ("author", "author", 200),
+        ("date", "date", 40),
+        ("id", "sigma_id", 100),
+        ("status", "sigma_status", 40),
+        ("level", "sigma_level", 40),
+    )
+    allowed = _SCALAR_TYPES + (datetime.date, datetime.datetime)
+    for source, target, limit in fields:
+        value = rule.get(source)
+        if value is None:
+            continue
+        if not isinstance(value, allowed):
+            _warn(report, f"non-scalar metadata field '{source}' was omitted")
+            continue
+        output.append((target, str(value)[:limit]))
+    references = rule.get("references", [])
+    if references:
+        if not isinstance(references, list):
+            _warn(report, "non-list 'references' metadata was omitted")
+        else:
+            for index, reference in enumerate(references[:5], start=1):
+                if isinstance(reference, allowed):
+                    output.append((f"reference_{index}", str(reference)[:300]))
+                else:
+                    _warn(report, "non-scalar reference was omitted")
+    output.extend(
+        (
+            ("converted_by", "yar2sig Sigma-to-YARA reverse converter"),
+            ("conversion_note", "Best-effort conversion; review before deployment"),
+        )
+    )
+    return output
+
 
 def convert_sigma_to_yara(
     sigma_rule: dict[str, Any],
@@ -295,275 +498,97 @@ def convert_sigma_to_yara(
     max_pattern_length: int = MAX_PATTERN_LENGTH,
     include_comments: bool = True,
 ) -> tuple[str, list[str]]:
-    """Convert a parsed Sigma rule dictionary to a YARA rule string.
-    
-    Args:
-        sigma_rule: Parsed Sigma rule as a dictionary.
-        max_patterns: Maximum number of string patterns to emit.
-        max_pattern_length: Maximum length of a single pattern.
-        include_comments: Include warning comments in the YARA rule.
-    
-    Returns:
-        Tuple of (yara_rule_text, report_messages).
-    
-    Raises:
-        SigmaConversionError: If the rule cannot be converted.
+    """Convert one parsed Sigma mapping into ``(YARA source, report)``.
+
+    Only scalar values and lists of scalars are converted. Basic Sigma mapping,
+    list, ``and``/``or``, and ``any``/``all`` condition semantics are retained
+    when their extracted pattern groups permit it.
     """
     if not isinstance(sigma_rule, dict):
-        raise SigmaConversionError("Sigma rule must be a dictionary")
-    
+        raise SigmaConversionError("Sigma rule must be a mapping")
+    if not isinstance(max_patterns, int) or max_patterns < 1:
+        raise SigmaConversionError("max_patterns must be a positive integer")
+    if not isinstance(max_pattern_length, int) or max_pattern_length < 1:
+        raise SigmaConversionError("max_pattern_length must be a positive integer")
+
     report: list[str] = []
-    
-    # --- Rule name ---
-    title = sigma_rule.get('title', '')
-    rule_id = sigma_rule.get('id', '')
-    if not title and not rule_id:
-        title = 'UnnamedSigmaRule'
-        report.append("WARNING: No title or id in Sigma rule")
-    
-    rule_name = _sanitize_yara_identifier(title or f"sigma_{rule_id[:8]}")
-    
-    # --- Metadata ---
-    meta_items: list[tuple[str, str]] = []
-    
-    if sigma_rule.get('description'):
-        desc = str(sigma_rule['description'])[:500]
-        meta_items.append(('description', desc))
-    
-    if sigma_rule.get('author'):
-        meta_items.append(('author', str(sigma_rule['author'])[:100]))
-    
-    if sigma_rule.get('date'):
-        meta_items.append(('date', str(sigma_rule['date'])))
-    
-    if sigma_rule.get('id'):
-        meta_items.append(('sigma_id', str(sigma_rule['id'])))
-    
-    if sigma_rule.get('status'):
-        meta_items.append(('sigma_status', str(sigma_rule['status'])))
-    
-    if sigma_rule.get('level'):
-        meta_items.append(('sigma_level', str(sigma_rule['level'])))
-    
-    refs = sigma_rule.get('references', [])
-    if isinstance(refs, list):
-        for i, ref in enumerate(refs[:5]):  # Limit references
-            meta_items.append((f'reference{i}', str(ref)[:200]))
-    
-    # Add conversion notice
-    meta_items.append(('converted_by', 'yar2sig (Sigma to YARA reverse converter)'))
-    meta_items.append(('conversion_note', 'Best-effort conversion - review before use'))
-    
-    # --- Extract patterns from detection ---
-    detection = sigma_rule.get('detection', {})
+    _warn(
+        report,
+        "Sigma event-field semantics cannot be equivalent to YARA byte matching; analyst review is required",
+    )
+    title = sigma_rule.get("title")
+    if not isinstance(title, _SCALAR_TYPES) or not str(title).strip():
+        title = sigma_rule.get("id")
+    if not isinstance(title, _SCALAR_TYPES) or not str(title).strip():
+        title = "UnnamedSigmaRule"
+        _warn(report, "rule has no scalar title or id; a fallback identifier was used")
+    rule_name = _sanitize_identifier(title)
+
+    detection = sigma_rule.get("detection")
     if not isinstance(detection, dict):
-        raise SigmaConversionError("Detection block must be a dictionary")
-    
-    condition_text = detection.get('condition', '')
-    if isinstance(condition_text, list):
-        condition_text = ' or '.join(str(c) for c in condition_text)
-        report.append("WARNING: Multiple conditions joined with 'or'")
-    
-    # Get condition semantics
-    cond_type, cond_warnings = _parse_sigma_condition(str(condition_text))
-    report.extend(cond_warnings)
-    
-    # Extract all selections (skip 'condition' and 'timeframe')
-    strings_data: list[dict[str, Any]] = []
-    selection_names = [k for k in detection.keys() if k not in ('condition', 'timeframe')]
-    
-    if not selection_names:
-        report.append("WARNING: No detection selections found")
-    
-    for sel_name in selection_names:
-        selection = detection[sel_name]
-        
-        for field_name, modifier, value in _extract_values_from_selection(selection):
-            if value is None:
-                continue
-            
-            value_str = str(value)
-            
-            # Skip empty values
-            if not value_str.strip():
-                continue
-            
-            # Enforce length limit
-            if len(value_str) > max_pattern_length:
-                report.append(
-                    f"WARNING: Pattern from '{sel_name}.{field_name}' truncated "
-                    f"(was {len(value_str)} chars)"
-                )
-                value_str = value_str[:max_pattern_length]
-            
-            # Determine pattern type based on modifier
-            pattern_type = 'text'
-            modifiers_list: list[str] = []
-            pattern_warnings: list[str] = []
-            
-            if 're' in modifier.split('|'):
-                # Regex pattern
-                converted, regex_warnings = _sigma_regex_to_yara_regex(value_str)
-                pattern_warnings.extend(regex_warnings)
-                value_str = converted
-                pattern_type = 'regex'
-            elif any(m in modifier.split('|') for m in ('contains', 'startswith', 'endswith')):
-                # Check for wildcards
-                value_str, pattern_type, wc_warnings = _sigma_wildcard_to_yara(value_str)
-                pattern_warnings.extend(wc_warnings)
-            else:
-                # Plain text - still check for wildcards
-                value_str, pattern_type, wc_warnings = _sigma_wildcard_to_yara(value_str)
-                pattern_warnings.extend(wc_warnings)
-            
-            # Case insensitivity
-            if 'i' in modifier or modifier.startswith('i') or 'nocase' in modifier:
-                modifiers_list.append('nocase')
-            
-            # Encoding hints
-            if 'wide' in modifier:
-                modifiers_list.append('wide')
-            if 'base64' in modifier:
-                modifiers_list.append('base64')
-                report.append(f"WARNING: base64 modifier on '{field_name}' may need review")
-            
-            # Default to wide ascii for broader matching
-            if 'wide' not in modifiers_list and pattern_type == 'text':
-                modifiers_list.extend(['wide', 'ascii'])
-            
-            report.extend(pattern_warnings)
-            
-            strings_data.append({
-                'selection': sel_name,
-                'field': field_name,
-                'value': value_str,
-                'type': pattern_type,
-                'modifiers': modifiers_list,
-            })
-            
-            # Check pattern limit
-            if len(strings_data) >= max_patterns:
-                report.append(f"WARNING: Pattern limit ({max_patterns}) reached, truncating")
-                break
-        
-        if len(strings_data) >= max_patterns:
-            break
-    
-    # --- Build YARA strings section ---
-    yara_strings: list[str] = []
-    string_counter: dict[str, int] = {}
-    
-    for data in strings_data:
-        # Generate unique identifier
-        base_id = _sanitize_yara_identifier(data['selection'], max_length=20)
-        count = string_counter.get(base_id, 0)
-        string_counter[base_id] = count + 1
-        string_id = f"${base_id}_{count}"
-        
-        value = data['value']
-        mods = ' '.join(data['modifiers'])
-        
-        if data['type'] == 'regex':
-            # Regex pattern
-            pattern_str = f"{string_id} = /{value}/"
-            if mods:
-                pattern_str += f" {mods}"
+        raise SigmaConversionError("Sigma rule 'detection' must be a mapping")
+
+    builder = _Builder(max_patterns, max_pattern_length, report)
+    expressions: dict[str, str] = {}
+    for raw_name, selection in detection.items():
+        if raw_name in {"condition", "timeframe"}:
+            continue
+        if not isinstance(raw_name, str):
+            _warn(report, "non-string detection selection name was skipped")
+            continue
+        expression = _selection_expression(raw_name, selection, builder)
+        if expression:
+            expressions[raw_name] = expression
         else:
-            # Text pattern
-            escaped = _escape_yara_string(value)
-            pattern_str = f"{string_id} = \"{escaped}\""
-            if mods:
-                pattern_str += f" {mods}"
-        
-        yara_strings.append(pattern_str)
-    
-    # --- Build condition ---
-    if not yara_strings:
-        report.append("WARNING: No string patterns extracted - rule will not compile")
-        yara_strings.append('// No patterns extracted from Sigma detection')
-        yara_condition = 'false // No patterns - manual review required'
-    elif cond_type == 'all':
-        yara_condition = 'all of them'
-    elif cond_type == 'any':
-        yara_condition = 'any of them'
-    elif cond_type.endswith('_of'):
-        n = cond_type.split('_')[0]
-        yara_condition = f'{n} of them'
-    else:
-        yara_condition = 'any of them'
-    
-    # --- Assemble YARA rule ---
+            _warn(report, f"selection '{raw_name}' produced no usable patterns")
+
+    condition = _condition_expression(detection.get("condition"), expressions, report)
+    metadata = _metadata(sigma_rule, report)
+
     lines: list[str] = []
-    
-    # Header comment
-    if include_comments and report:
-        lines.append('/*')
-        lines.append(' * Sigma-to-YARA Conversion Report:')
-        for msg in report:
-            lines.append(f' *   {msg}')
-        lines.append(' */')
-        lines.append('')
-    
-    # Rule declaration
-    lines.append(f'rule {rule_name}')
-    lines.append('{')
-    
-    # Meta section
-    lines.append('    meta:')
-    for key, value in meta_items:
-        escaped_value = _escape_yara_string(str(value))
-        lines.append(f'        {key} = "{escaped_value}"')
-    
-    # Strings section
-    lines.append('')
-    lines.append('    strings:')
-    for s in yara_strings:
-        lines.append(f'        {s}')
-    
-    # Condition section
-    lines.append('')
-    lines.append('    condition:')
-    lines.append(f'        {yara_condition}')
-    
-    lines.append('}')
-    
-    yara_text = '\n'.join(lines)
-    return yara_text, report
+    if include_comments:
+        lines.extend(("/*", " * Sigma-to-YARA conversion report:"))
+        lines.extend(f" * {_escape_comment(message)}" for message in report)
+        lines.extend((" */", ""))
+    lines.extend((f"rule {rule_name}", "{", "    meta:"))
+    for key, value in metadata:
+        lines.append(f'        {key} = "{_escape_yara_text(value)}"')
+    if builder.patterns:
+        lines.extend(("", "    strings:"))
+        for pattern in builder.patterns:
+            modifiers = " ".join(pattern.modifiers)
+            if pattern.kind == "regex":
+                declaration = f"{pattern.identifier} = /{pattern.value}/ {modifiers}"
+            else:
+                declaration = (
+                    f'{pattern.identifier} = "{_escape_yara_text(pattern.value)}" {modifiers}'
+                )
+            lines.append("        " + declaration.rstrip())
+    lines.extend(("", "    condition:", f"        {condition}", "}"))
+    return "\n".join(lines) + "\n", report
 
 
-def convert_sigma_text(
-    yaml_text: str,
-    **kwargs: Any,
-) -> list[tuple[str, list[str]]]:
-    """Convert YAML text containing one or more Sigma rules to YARA.
-    
-    Supports multiple YAML documents separated by '---'.
-    
-    Returns:
-        List of (yara_rule_text, report) tuples.
+def convert_sigma_text(yaml_text: str, **kwargs: Any) -> list[tuple[str, list[str]]]:
+    """Convert all Sigma mappings in a YAML stream.
+
+    Documents must each be a mapping. Empty documents are ignored. Invalid
+    YAML or non-mapping documents raise :class:`SigmaConversionError`.
     """
-    results: list[tuple[str, list[str]]] = []
-    
-    # Parse all YAML documents
+    if not isinstance(yaml_text, str):
+        raise SigmaConversionError("Sigma YAML input must be text")
     try:
         documents = list(yaml.safe_load_all(yaml_text))
-    except yaml.YAMLError as e:
-        raise SigmaConversionError(f"Invalid YAML: {e}") from e
-    
-    for i, doc in enumerate(documents):
-        if doc is None:
+    except yaml.YAMLError as exc:
+        raise SigmaConversionError(f"Invalid Sigma YAML: {exc}") from exc
+    results: list[tuple[str, list[str]]] = []
+    for index, document in enumerate(documents, start=1):
+        if document is None:
             continue
-        
-        if not isinstance(doc, dict):
-            results.append(('', [f"WARNING: Document {i+1} is not a dictionary, skipped"]))
-            continue
-        
-        try:
-            yara_text, report = convert_sigma_to_yara(doc, **kwargs)
-            results.append((yara_text, report))
-        except SigmaConversionError as e:
-            results.append(('', [f"ERROR: Document {i+1}: {e}"]))
-    
+        if not isinstance(document, dict):
+            raise SigmaConversionError(f"Sigma YAML document {index} must be a mapping")
+        results.append(convert_sigma_to_yara(document, **kwargs))
+    if not results:
+        raise SigmaConversionError("Sigma YAML contains no rule documents")
     return results
 
 
@@ -571,18 +596,20 @@ def convert_sigma_file(
     path: Union[str, Path],
     **kwargs: Any,
 ) -> list[tuple[str, list[str]]]:
-    """Convert a Sigma YAML file to YARA rules.
-    
-    Returns:
-        List of (yara_rule_text, report) tuples.
-    """
-    path = Path(path)
-    if not path.exists():
-        raise SigmaConversionError(f"File not found: {path}")
-    
+    """Read and convert all Sigma documents in *path*."""
+    source = Path(path)
     try:
-        text = path.read_text(encoding='utf-8')
-    except IOError as e:
-        raise SigmaConversionError(f"Cannot read file: {e}") from e
-    
+        text = source.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise SigmaConversionError(f"Unable to read Sigma file '{source}': {exc}") from exc
     return convert_sigma_text(text, **kwargs)
+
+
+__all__ = [
+    "MAX_PATTERNS",
+    "MAX_PATTERN_LENGTH",
+    "SigmaConversionError",
+    "convert_sigma_file",
+    "convert_sigma_text",
+    "convert_sigma_to_yara",
+]
