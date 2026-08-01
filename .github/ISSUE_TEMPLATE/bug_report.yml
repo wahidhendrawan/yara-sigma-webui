@@ -1,0 +1,101 @@
+name: Bug report
+description: Report a reproducible problem with yar2sig
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a problem. Do not disclose vulnerabilities, credentials, private YARA rules, or sensitive indicators here. Use the private process in SECURITY.md for security reports.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and its impact.
+      placeholder: The conversion returns ... when ...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest safe reproduction. Redact any sensitive content.
+      placeholder: |
+        1. Run ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - Python library
+        - CLI
+        - Web UI or API
+        - Docker image or Compose
+        - Mapping pipeline
+        - Backend query generation
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: pipeline
+    attributes:
+      label: Mapping pipeline, if applicable
+      options:
+        - Not applicable
+        - sysmon
+        - winsec
+        - linux
+        - proxy
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Query backend, if applicable
+      options:
+        - Not applicable
+        - elastic
+        - splunk
+        - kusto
+        - qradar
+        - carbon_black
+        - sentinelone
+        - crowdstrike
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include yar2sig version or commit, installation method, OS, Python version, and relevant container image tag.
+      placeholder: |
+        yar2sig version/commit:
+        Installation method:
+        OS:
+        Python version:
+        Docker image tag (if applicable):
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I removed credentials, private rules, and sensitive indicators from this report.
+          required: true
