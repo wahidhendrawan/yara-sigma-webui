@@ -1,14 +1,13 @@
-[![CI](https://github.com/wahidhendrawan/yara-sigma-webui/actions/workflows/ci.yml/badge.svg)](https://github.com/wahidhendrawan/yara-sigma-webui/actions/workflows/ci.yml)
-
 # 🛡️ YARA → Sigma Converter (`yar2sig`)
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![CI](https://github.com/wahidhendrawan/yara-sigma-webui/actions/workflows/ci.yml/badge.svg)](https://github.com/wahidhendrawan/yara-sigma-webui/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/wahidhendrawan/yara-sigma-webui?sort=semver)](https://github.com/wahidhendrawan/yara-sigma-webui/releases/latest)
+[![License](https://img.shields.io/github/license/wahidhendrawan/yara-sigma-webui)](LICENSE)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/wahidhendrawan/yara-sigma-webui/badge)](https://scorecard.dev/viewer/?uri=github.com/wahidhendrawan/yara-sigma-webui)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/docker-compose%20ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![Backends](https://img.shields.io/badge/SIEM%2FEDR%20backends-7-6366f1)](#-supported-backends)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
 [![Coverage](https://codecov.io/gh/wahidhendrawan/yara-sigma-webui/branch/main/graph/badge.svg)](https://codecov.io/gh/wahidhendrawan/yara-sigma-webui)
-[![Version](https://img.shields.io/badge/version-3.0.0-informational)](pyproject.toml)
 
 Convert **YARA rules** into **Sigma rules** and **native SIEM/EDR queries** —
 with automatic IOC classification, MITRE ATT&CK tagging, configurable mapping
@@ -93,6 +92,10 @@ cd yara-sigma-webui
 pip install -r requirements.txt
 python app.py            # dev server on http://127.0.0.1:5000
 ```
+
+`requirements.txt` is pinned and generated from `requirements.in`; after editing
+`requirements.in`, regenerate it on Python 3.12 with
+`pip-compile --strip-extras --output-file=requirements.txt requirements.in`.
 
 Or install as a package (gives you the `yar2sig` command):
 
@@ -311,6 +314,11 @@ To add a new pipeline (e.g. for Zeek, Okta, AWS CloudTrail), drop a new
 
 Install `sigma-cli` + the relevant backend plugin for native conversion.
 
+Each native conversion runs `sigma-cli` as a subprocess. `YAR2SIG_SIGMA_CONCURRENCY`
+caps how many run at once per server process (default: CPU count; the Docker
+image sets `1`). When every slot is busy, `/api/convert` returns `503` with
+`Retry-After`.
+
 ---
 
 ## 🧪 Tests
@@ -335,6 +343,10 @@ point**, not a 1:1 translation. Always review generated rules and tune fields,
 operators, and false positives for your environment before deploying.
 
 ---
+
+## Security
+
+Please report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), not in a public issue.
 
 ## 📄 License
 

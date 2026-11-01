@@ -17,6 +17,7 @@ from yar2sig import (
     generate_query,
     load_mapping,
 )
+from yar2sig.backends import BackendBusyError
 from yar2sig.emitter import emit_sigma
 from yar2sig.parser import parse_yara_rule
 
@@ -135,6 +136,10 @@ def api_convert():
                 "tags": rule.get("tags", []),
             },
         )
+    except BackendBusyError as exc:
+        response, status = _error(str(exc), 503)
+        response.headers["Retry-After"] = "5"
+        return response, status
     except FileNotFoundError as exc:
         return _error(str(exc), 400)
     except ValueError as exc:

@@ -1,6 +1,10 @@
 """Tests for yar2sig."""
 
 import json
+import os
+import subprocess
+import threading
+import time
 import yaml
 
 import pytest
@@ -324,3 +328,98 @@ def test_cli_convert_defaults_to_yaml_stdout(tmp_path, capsys):
 
     assert yaml.safe_load(output)["title"] == "test desc"
     assert not output.lstrip().startswith("{")
+
+
+ADVERSARIAL_RULES = {
+    "repeated_meta_unterminated": "rule a {\n" + "meta: " * 160_000,
+    "repeated_condition_unterminated": "rule a {\n" + "condition: " * 90_000,
+    "blank_lines": "x" + "\n" * 1_000_000 + "y",
+    "nested_unterminated_braces": "rule a {\n" * 110_000,
+    "headers_without_brace": "rule a : t\n" * 90_000,
+    "unterminated_string": 'rule a {\n strings:\n $a = "' + "strings: " * 110_000,
+    "inner_whitespace": "rule a {\n strings:\n $a = x" + " " * 1_000_000 + "y\n condition: any of them\n}",
+}
+
+
+@pytest.mark.parametrize("name", sorted(ADVERSARIAL_RULES))
+def test_parser_is_linear_on_adversarial_1mb_input(name):
+    started = time.perf_counter()
+    try:
+        parse_yara_rule(ADVERSARIAL_RULES[name])
+    except ValueError:
+        pass  # bound violations are fine; hanging is not
+    # The old regexes took minutes to hours on these inputs.
+    assert time.perf_counter() - started < 10
+
+
+def test_parser_handles_braces_inside_strings_hex_and_regex():
+    text = r'''
+rule Braces {
+  strings:
+    $s = "}{ not a brace"
+    $h = { 4D 5A [2-4] 90 }
+    $r = /a{2,3}\}/
+  condition:
+    any of them
+}
+rule Next { condition: true }
+'''
+    assert len(split_rules(text)) == 2
+    parsed = parse_yara_rule(text)
+    assert parsed["name"] == "Braces"
+    assert parsed["strings"] == ["}{ not a brace", "4D 5A [2-4] 90", r"a{2,3}\}"]
+    assert parsed["condition_raw"] == "any of them"
+
+
+def test_parser_tolerates_unterminated_string_and_malformed_input():
+    parsed = parse_yara_rule('rule Broken {\n strings:\n  $a = "abc\n condition:\n  any of them\n}')
+    assert parsed["name"] == "Broken"
+    assert parsed["strings"] == []
+    assert parsed["condition_raw"] == "any of them"
+
+    parsed = parse_yara_rule("rule Open {\n strings:\n  $a = \"x\"\n condition:\n  $a")
+    assert parsed["strings"] == ["x"]
+    assert parsed["condition_raw"] == "$a"
+
+    assert parse_yara_rule("not a yara rule")["name"] == "ConvertedRule"
+
+
+def _fake_sigma(monkeypatch, run):
+    monkeypatch.setattr(backends, "_sigma_cli_available", lambda: True)
+    monkeypatch.setattr(backends, "_SIGMA_SLOTS", threading.BoundedSemaphore(1))
+    monkeypatch.setattr(backends.subprocess, "run", run)
+
+
+def test_sigma_slot_is_released_after_success_and_failure(monkeypatch):
+    rule, _ = convert(BASIC, "sysmon")
+    done = subprocess.CompletedProcess([], 0, "native query", "")
+    _fake_sigma(monkeypatch, lambda *a, **k: done)
+    assert generate_query("splunk", rule, []) == "native query"
+    assert generate_query("splunk", rule, []) == "native query"
+
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired("sigma", 30)
+
+    monkeypatch.setattr(backends.subprocess, "run", timeout)
+    assert generate_query("splunk", rule, ["x"]) == '_raw="*x*"'
+    assert backends._SIGMA_SLOTS.acquire(blocking=False)
+
+
+def test_api_returns_503_when_sigma_slots_are_busy(monkeypatch):
+    _fake_sigma(monkeypatch, lambda *a, **k: pytest.fail("sigma ran while saturated"))
+    backends._SIGMA_SLOTS.acquire()
+    response = app.test_client().post(
+        "/api/convert", json={"rule": BASIC, "pipeline": "sysmon", "backend": "splunk"}
+    )
+    assert response.status_code == 503
+    assert response.headers["Retry-After"] == "5"
+    assert "busy" in response.get_json()["error"]
+
+
+@pytest.mark.parametrize(("value", "expected"), [("3", 3), ("0", 1), ("junk", None), (None, None)])
+def test_sigma_slot_count_from_env(monkeypatch, value, expected):
+    if value is None:
+        monkeypatch.delenv("YAR2SIG_SIGMA_CONCURRENCY", raising=False)
+    else:
+        monkeypatch.setenv("YAR2SIG_SIGMA_CONCURRENCY", value)
+    assert backends._sigma_slots() == (expected or os.cpu_count() or 1)
