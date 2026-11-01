@@ -1,40 +1,32 @@
 # Security Policy
 
-## Reporting a Vulnerability
+## Supported versions
 
-Please report suspected vulnerabilities privately. **Do not open a public issue, include secrets or personal data in a report, or publicly disclose the problem before a fix is available.**
+Only the latest release of yar2sig gets security fixes. Please check that the problem still exists there before reporting.
 
-Use one of these channels, in order of preference:
+## Reporting a vulnerability
 
-1. [GitHub private vulnerability reporting](https://github.com/wahidhendrawan/yara-sigma-webui/security/advisories/new)
-2. Email `wahidhendrawan@proton.me` with the subject ` yar2sig security report`.
+Report privately through GitHub: **Security → Report a vulnerability** on this repository ([direct link](https://github.com/wahidhendrawan/yara-sigma-webui/security/advisories/new)). Do not open a public issue, discussion or pull request, and do not post exploit details or credentials anywhere public.
 
-Include, where possible:
+Please include:
 
-- the affected version, commit, or Docker image tag;
-- a concise description of the impact and attack prerequisites;
-- minimal reproduction steps or a safe proof of concept;
-- relevant logs, configuration, and environment details with credentials and sensitive indicators redacted; and
-- your preferred contact method for follow-up.
+- the version or commit you tested, and whether you used the CLI, the web UI or the Docker image
+- the smallest steps or input that reproduce the problem
+- what an attacker gains (data exposure, code execution, privilege escalation, denial of service, …)
 
-We aim to acknowledge reports within 48 hours and provide a status update within 7 days. Critical issues are prioritized for the next available patch release. Please allow reasonable time for investigation and remediation before any coordinated disclosure.
+Remove real credentials, customer data and sensitive logs from any evidence you share.
 
-If a report contains sensitive data, ask for a secure upload method rather than sending that data by ordinary email.
+You should get a first reply within 7 days. Fixed issues are credited in the release notes unless you ask otherwise.
 
-## Supported Versions
+## In scope
 
-Security fixes are applied to the latest released version and the `main` branch. Older releases are unsupported unless a security advisory explicitly states otherwise.
+- Crafted YARA or Sigma input that causes code execution, injection into the `sigma` CLI, or denial of service
+- XSS or request forgery in the web UI
 
-| Version | Supported |
-| --- | --- |
-| Latest release | Yes |
-| `main` | Yes |
-| Older releases | No |
+## Out of scope
 
-## Scope
+- Detection quality of generated rules and queries: open a normal issue
 
-This policy covers the `yar2sig` Python package, CLI, Flask API, web UI, Docker image, and GitHub Actions workflows in this repository. Reports about third-party dependencies are welcome when they create a demonstrable vulnerability in this project; otherwise, please report them to the upstream maintainer as well.
+## Safe harbor
 
-## Recognition
-
-With your permission, valid reporters may be credited in the release notes or security advisory. Anonymous reports are also welcome.
+Good-faith research that follows this policy will not be treated as a violation of the license or of this policy. Only test against your own deployment, access no more data than needed to show the issue, and do not degrade services for other people.

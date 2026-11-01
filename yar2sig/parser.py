@@ -10,9 +10,12 @@ from __future__ import annotations
 import re
 from typing import Any, Optional
 
-_RULE_RE = re.compile(r"(?ms)^\s*(?:private\s+|global\s+)*rule\s+[^\{]+\{")
-_NAME_RE = re.compile(r"(?ms)^\s*(?:private\s+|global\s+)*rule\s+([A-Za-z0-9_]+)\s*(?::\s*([^\{]+))?\{")
-_STRING_DECL_RE = re.compile(r"^\s*(\$[A-Za-z0-9_]+)\s*=\s*(.+?)\s*$")
+# Header prefixes stay on one line and tags stop at ':'/braces so every scan is
+# bounded; spanning newlines made these quadratic on hostile 1 MB input.
+_HEADER = r"(?m)^[^\S\n]*(?:(?:private|global)[^\S\n]+)*rule\s+"
+_RULE_RE = re.compile(_HEADER + r"[A-Za-z0-9_]+\s*(?::[^{}:]*)?\{")
+_NAME_RE = re.compile(_HEADER + r"([A-Za-z0-9_]+)\s*(?::\s*([^{}:]*))?\{")
+_STRING_DECL_RE = re.compile(r"^(\$[A-Za-z0-9_]+)\s*=\s*(.+)")  # input is pre-stripped
 _HEX_RE = re.compile(r"^\{([0-9a-fA-F\s\?\[\]\-()|]+)\}\s*(.*)$")
 _REGEX_RE = re.compile(r"^/(.+)/([a-z]*)\s*(.*)$")
 _TEXT_RE = re.compile(r'^"((?:[^"\\]|\\.)*)"\s*(.*)$')
@@ -105,21 +108,35 @@ def split_rules(text: str) -> list[str]:
     """Split a multi-rule YARA file into individual rule blocks."""
     text = _strip_comments(text)
     blocks: list[str] = []
-    for match in _RULE_RE.finditer(text):
-        brace_start = text.index("{", match.end() - 1)
-        end = _find_matching_brace(text, brace_start)
-        if end is not None:
-            blocks.append(text[match.start() : end + 1])
+    pos = 0
+    while True:
+        match = _RULE_RE.search(text, pos)
+        if not match:
+            break
+        end = _find_matching_brace(text, match.end() - 1)
+        if end is None:
+            break  # unterminated: the scan already hit EOF, rescanning per header is quadratic
+        blocks.append(text[match.start() : end + 1])
+        pos = end + 1
     return blocks or ([text] if text.strip() else [])
 
 
 def _section(text: str, name: str, stop_names: tuple[str, ...]) -> str:
-    if not stop_names:
-        match = re.search(rf"\b{name}\s*:\s*(.*?)(?=\}}\s*$)", text, flags=re.S | re.I)
-        return match.group(1) if match else ""
-    stops = "|".join(re.escape(s) for s in stop_names)
-    match = re.search(rf"\b{name}\s*:\s*(.*?)(?=\b(?:{stops})\s*:|\}}\s*$)", text, flags=re.S | re.I)
-    return match.group(1) if match else ""
+    """Text after ``name:`` up to the next stop section or the rule's closing brace.
+
+    Forward scans only: a lazy ``(.*?)`` + lookahead regex was quadratic here.
+    """
+    header = re.search(rf"\b{name}\s*:\s*", text, flags=re.I)
+    if not header:
+        return ""
+    start = header.end()
+    if stop_names:
+        stops = "|".join(re.escape(s) for s in stop_names)
+        stop = re.compile(rf"\b(?:{stops})\s*:", re.I).search(text, start)
+        if stop:
+            return text[start : stop.start()]
+    end = len(text.rstrip()) - 1
+    return text[start:end] if end >= start and text[end] == "}" else ""
 
 
 def _decode_text(value: str) -> str:

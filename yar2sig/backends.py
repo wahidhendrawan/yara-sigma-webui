@@ -6,10 +6,12 @@ wildcard search expressions per backend when sigma-cli is unavailable.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any, Optional
 
@@ -28,6 +30,21 @@ BACKENDS: dict[str, tuple[str, str, Optional[str]]] = {
 LUCENE_SPECIAL_RE = re.compile(r"([+\-&|!(){}\[\]^\"~*?:\\/])")
 
 
+class BackendBusyError(RuntimeError):
+    """Every sigma-cli slot is in use; the caller should retry later."""
+
+
+def _sigma_slots() -> int:
+    try:
+        return max(1, int(os.environ.get("YAR2SIG_SIGMA_CONCURRENCY", "")))
+    except ValueError:
+        return os.cpu_count() or 1
+
+
+# Each `sigma convert` is a separate Python process (up to 30 s); cap them per worker.
+_SIGMA_SLOTS = threading.BoundedSemaphore(_sigma_slots())
+
+
 def _sigma_cli_available() -> bool:
     return shutil.which("sigma") is not None
 
@@ -42,10 +59,6 @@ def _escape_quoted(value: str) -> str:
 
 def _escape_lucene(value: str) -> str:
     return LUCENE_SPECIAL_RE.sub(r"\\\1", value)
-
-
-def _escape_kusto(value: str) -> str:
-    return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def _escape_qradar_like(value: str) -> str:
@@ -67,7 +80,7 @@ def _fallback_query(backend_id: str, patterns: list[str]) -> str:
         return " OR ".join(f'{field}="*{_escape_quoted(value)}*"' for value in values)
 
     if backend_id == "kusto":
-        conds = " or ".join(f'{field} contains "{_escape_kusto(value)}"' for value in values)
+        conds = " or ".join(f'{field} contains "{_escape_quoted(value)}"' for value in values)
         return f"DeviceProcessEvents | where {conds}"
 
     if backend_id == "qradar":
@@ -94,6 +107,8 @@ def generate_query(backend_id: str, sigma_rule: dict[str, Any], patterns: list[s
     target = BACKENDS[backend_id][2]
     tmp: Optional[str] = None
     if target and _sigma_cli_available():
+        if not _SIGMA_SLOTS.acquire(blocking=False):
+            raise BackendBusyError("Native query backend is busy, retry shortly")
         try:
             with tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False) as fh:
                 yaml.safe_dump(sigma_rule, fh, sort_keys=False, allow_unicode=True)
@@ -110,6 +125,7 @@ def generate_query(backend_id: str, sigma_rule: dict[str, Any], patterns: list[s
         except Exception:
             pass
         finally:
+            _SIGMA_SLOTS.release()
             if tmp:
                 Path(tmp).unlink(missing_ok=True)
 
