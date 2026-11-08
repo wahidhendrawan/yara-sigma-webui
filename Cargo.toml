@@ -1,0 +1,30 @@
+[package]
+name = "yar2sig"
+version = "4.0.0"
+edition = "2021"
+rust-version = "1.85"
+description = "Convert YARA rules to Sigma rules and native SIEM/EDR queries"
+license = "GPL-3.0-only"
+repository = "https://github.com/wahidhendrawan/yara-sigma-webui"
+keywords = ["yara", "sigma", "siem", "edr", "detection-engineering"]
+publish = false
+build = "build.rs"
+
+[dependencies]
+axum = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_yaml_ng = "0.10"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

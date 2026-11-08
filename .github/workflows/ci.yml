@@ -11,49 +11,35 @@ permissions:
 
 jobs:
   test:
-    name: Tests (Python ${{ matrix.python }})
+    name: Tests (Rust stable)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: ${{ matrix.python }}
-      - name: Install
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[web,dev]"
-      - name: Run tests with coverage gate
-        run: pytest -q --cov=yar2sig --cov-report=xml --cov-report=term
-      - name: Upload coverage to Codecov
-        if: matrix.python == '3.12'
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.xml
-          flags: unittests
-          fail_ci_if_error: false
-          verbose: true
-      - name: Compile sources
-        run: python -m compileall app.py yar2sig tests
+      - name: Toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt && rustup default stable
+      - name: Format
+        run: cargo fmt --check
+      - name: Lint
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Test
+        run: cargo test --locked
 
   cli-smoke:
     name: CLI smoke test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.12"
-      - name: Install
-        run: python -m pip install -e .
-      - name: Pipelines + convert + query
+      - name: Toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Build
+        run: cargo build --release --locked
+      - name: Pipelines + convert + query + reverse
         run: |
-          python -m yar2sig pipelines
-          python -m yar2sig convert samples/malware.yar -p sysmon | head -20
-          python -m yar2sig query samples/malware.yar -b splunk
+          ./target/release/yar2sig pipelines
+          ./target/release/yar2sig convert samples/malware.yar -p sysmon | head -20
+          ./target/release/yar2sig query samples/malware.yar -b splunk
+          ./target/release/yar2sig convert samples/malware.yar -o /tmp/sigma
+          ./target/release/yar2sig reverse /tmp/sigma -o /tmp/yara
 
   docker:
     name: Docker build + healthcheck

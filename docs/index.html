@@ -81,7 +81,7 @@
   </header>
 
   <div class="notice">
-    <strong>ℹ️ This is a documentation page, not a live demo.</strong> The converter runs as a Flask API with <code>sigma-cli</code> and backend plugins bundled server-side, so it can't run as a static site. Spin it up with Docker in seconds — see below.
+    <strong>ℹ️ This is a documentation page, not a live demo.</strong> The converter runs as a Rust (axum) server with <code>sigma-cli</code> and backend plugins bundled server-side, so it can't run as a static site. Spin it up with Docker in seconds — see below.
   </div>
 
   <section>
@@ -102,7 +102,7 @@
 cd yara-sigma-webui
 docker compose up -d --build
 # open http://127.0.0.1:8000</code></pre>
-    <p style="color:var(--muted); font-size:0.9rem;">Or locally with Python: <code>pip install -r requirements.txt && python app.py</code> (dev server on <code>:5000</code>).</p>
+    <p style="color:var(--muted); font-size:0.9rem;">Or locally with Rust: <code>cargo run --release -- serve</code> (on <code>:8000</code>).</p>
   </section>
 
   <section>
@@ -122,8 +122,8 @@ docker compose up -d --build
   <section>
     <h2>Tech Stack</h2>
     <div class="stack-tags">
-      <span class="tag">Python 3.9+</span><span class="tag">Flask</span><span class="tag">gunicorn</span>
-      <span class="tag">sigma-cli</span><span class="tag">Docker</span><span class="tag">pytest</span>
+      <span class="tag">Rust</span><span class="tag">axum</span><span class="tag">clap</span>
+      <span class="tag">sigma-cli</span><span class="tag">Docker</span>
     </div>
   </section>
 
