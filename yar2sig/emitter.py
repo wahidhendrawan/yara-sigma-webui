@@ -9,11 +9,17 @@ from __future__ import annotations
 import datetime
 import re
 import uuid
-from typing import Any
+from typing import Any, Iterable
 
 from .ioc import classify_pattern
 
 MITRE_RE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b")
+ATTACK_TECHNIQUE_TAG_RE = re.compile(r"^attack\.t\d{4}(?:\.\d{3})?$")
+# Key order of templates/sigma.yml in github.com/wahidhendrawan/Detection-Rules.
+DETECTION_RULES_ORDER = (
+    "title", "id", "status", "description", "author", "date", "modified", "references",
+    "logsource", "detection", "fields", "falsepositives", "level", "tags",
+)
 COMPLEX_CONDITION_RE = re.compile(r"\b\d+\s+of\b|\$[A-Za-z0-9_]*\*|for\s+any|for\s+all", re.I)
 REVIEW_MODIFIERS = {"wide", "xor", "base64", "base64wide", "fullword"}
 
@@ -184,3 +190,36 @@ def emit_sigma(parsed: dict[str, Any], mapping: dict) -> tuple[dict[str, Any], l
         },
     }
     return rule, report
+
+
+def to_detection_rules(rule: dict[str, Any], techniques: Iterable[str] = ()) -> dict[str, Any]:
+    """Reshape an emitted rule into the Detection-Rules repository layout.
+
+    Template key order, ``modified`` and ``fields`` added, the ``x_yar2sig`` block dropped, and at
+    least one ``attack.tNNNN`` tag (from the rule or *techniques*), which that repository's lint
+    requires. Raises ValueError when no technique is available or one is malformed.
+    """
+    tags = list(rule.get("tags") or [])
+    for technique in techniques:
+        tag = f"attack.{str(technique).strip().lower()}"
+        if not ATTACK_TECHNIQUE_TAG_RE.fullmatch(tag):
+            raise ValueError(f"not a MITRE ATT&CK technique ID: {technique!r} (expected e.g. T1059 or T1059.001)")
+        if tag not in tags:
+            tags.append(tag)
+    if not any(ATTACK_TECHNIQUE_TAG_RE.fullmatch(tag) for tag in tags):
+        raise ValueError("no MITRE ATT&CK technique tag; put the technique ID in the YARA meta or pass --attack T1059")
+
+    fields: list[str] = []
+    for selection in rule.get("detection", {}).values():
+        if isinstance(selection, dict):
+            for key in selection:
+                field = str(key).split("|", 1)[0]
+                if field not in fields:
+                    fields.append(field)
+
+    out = dict(rule)
+    out["modified"] = out.get("date")
+    out["fields"] = fields
+    out["tags"] = tags
+    out.pop("x_yar2sig", None)
+    return {key: out[key] for key in DETECTION_RULES_ORDER if key in out}

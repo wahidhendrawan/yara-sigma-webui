@@ -18,6 +18,10 @@ versioning follows [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Detection-Rules export** — `yar2sig convert --format detection-rules [--attack T1059]`
+  writes rules in the layout of the Detection-Rules repository (template key order,
+  `modified`, `fields`, no `x_yar2sig` block, ATT&CK technique tag required) so they
+  pass its `detection_rules lint`.
 - **CLI JSON output** — `yar2sig convert --format json` emits a versioned,
   machine-readable conversion envelope for CI and SIEM pipelines while keeping
   YAML as the backward-compatible default. JSON directory output writes one
