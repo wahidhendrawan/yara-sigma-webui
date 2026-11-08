@@ -12,7 +12,8 @@ permissions:
 jobs:
   test:
     name: Tests (Python ${{ matrix.python }})
-    runs-on: ubuntu-latest
+    # ubuntu-latest (26.04) has no Python 3.9 build; keep 24.04 while 3.9 stays supported
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python: ["3.9", "3.12"]
