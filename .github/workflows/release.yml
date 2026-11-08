@@ -47,9 +47,9 @@ jobs:
             echo "::error::Tag '$TAG' is not a valid vMAJOR.MINOR.PATCH[-suffix] version."
             exit 1
           fi
-          project_version="$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")"
+          project_version="$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('Cargo.toml').read_text())['package']['version'])")"
           if [ "$VERSION" != "$project_version" ]; then
-            echo "::error::Tag version '$VERSION' does not match pyproject.toml version '$project_version'."
+            echo "::error::Tag version '$VERSION' does not match Cargo.toml version '$project_version'."
             exit 1
           fi
           if ! grep -q "\[$VERSION\]" CHANGELOG.md; then

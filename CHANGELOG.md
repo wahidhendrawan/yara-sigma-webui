@@ -18,7 +18,17 @@ versioning follows [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
-- Python 3.10 is now the minimum (3.9 reached end of life in October 2025); CI tests 3.10 and 3.12.
+- **Rewritten in Rust (4.0.0, breaking for library users)** — `yar2sig` is now one binary
+  built with Cargo (`cargo build --release`). The `convert`, `pipelines`, `query` and
+  `reverse` commands and flags, the mapping pipelines (now under `mappings/` and embedded
+  at build time), the `POST /api/convert` and `/healthz` contracts, the security headers,
+  the size and pattern limits, and the Docker Compose deployment are unchanged. The new
+  `yar2sig serve` command (axum) replaces Flask + gunicorn; the Docker image still bundles
+  `sigma-cli` for native queries and caps it with `YAR2SIG_SIGMA_CONCURRENCY` (now `2`).
+  The Python package and its library API are removed; the crate exposes the same
+  functions (`convert`, `convert_all`, `parser::parse_yara_rule`, `emitter::emit_sigma`,
+  `emitter::to_detection_rules`, `backends::generate_query`, `sig2yar::*`). CI runs
+  `cargo fmt`, `clippy` and `cargo test` instead of pytest and Codecov.
 
 ### Added
 - **Detection-Rules layout in the web UI and API** — a checkbox (and `layout` /
