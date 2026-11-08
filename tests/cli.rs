@@ -357,7 +357,7 @@ fn query_fallback_and_native() {
     {
         use std::os::unix::fs::PermissionsExt;
         let sigma = dir.join("sigma");
-        fs::write(&sigma, "#!/bin/sh\n[ \"$1\" = convert ] && [ \"$3\" = splunk ] && echo \"native query from ${4##*/}\"\n").unwrap();
+        fs::write(&sigma, "#!/bin/sh\n[ \"$1\" = convert ] && [ \"$3\" = splunk ] && [ \"$4\" = --without-pipeline ] && echo \"native query from ${5##*/}\"\n").unwrap();
         fs::set_permissions(&sigma, fs::Permissions::from_mode(0o755)).unwrap();
         let (code, out, _) = run_env(
             &["query", "samples/malware.yar", "-b", "splunk"],

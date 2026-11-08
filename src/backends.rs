@@ -41,7 +41,7 @@ pub const BACKENDS: [Backend; 7] = [
         id: "qradar",
         label: "IBM QRadar AQL",
         field: "payload",
-        target: Some("qradar"),
+        target: Some("q_radar_aql"),
     },
     Backend {
         id: "carbonblack",
@@ -225,7 +225,8 @@ fn write_private(path: &Path, text: &str) -> std::io::Result<()> {
 
 fn run_sigma(sigma: &Path, target: &str, rule_file: &Path) -> Option<String> {
     let mut child = Command::new(sigma)
-        .args(["convert", "-t", target])
+        // --without-pipeline: the splunk/qradar backends otherwise refuse rules without a processing pipeline
+        .args(["convert", "-t", target, "--without-pipeline"])
         .arg(rule_file)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

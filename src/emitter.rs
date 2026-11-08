@@ -173,10 +173,11 @@ pub fn emit_sigma(parsed: &ParsedRule, mapping: &Value) -> (Value, Vec<String>) 
             );
             group_names.push(sel_name);
         }
+        // `1 of selN_*` instead of `(selN_1 or selN_2)`: pySigma 0.11 crashes on parenthesised groups.
         match group_names.len() {
             0 => {}
             1 => condition_groups.push(group_names.remove(0)),
-            _ => condition_groups.push(format!("({})", group_names.join(" or "))),
+            _ => condition_groups.push(format!("1 of sel{}_*", idx + 1)),
         }
         report.push(format!(
             "Pattern '{pattern}' -> {ioc_type} -> fields {} (op: {op}).",
@@ -376,7 +377,7 @@ rule TestRule : malware {
     #[test]
     fn uses_all_mapped_fields() {
         let (rule, _) = convert("rule UrlRule {\n strings:\n  $url = \"http://evil.example.com/path\"\n condition:\n  $url\n}", "sysmon").unwrap();
-        assert_eq!(rule["detection"]["condition"], "(sel1_1 or sel1_2)");
+        assert_eq!(rule["detection"]["condition"], "1 of sel1_*");
         assert!(rule["detection"]["sel1_1"].get("Image|contains").is_some());
         assert!(rule["detection"]["sel1_2"]
             .get("CommandLine|contains")
@@ -427,7 +428,7 @@ rule TestRule : malware {
             "sysmon",
         )
         .unwrap();
-        assert_eq!(rule["detection"]["condition"], "(sel1_1 or sel1_2)");
+        assert_eq!(rule["detection"]["condition"], "1 of sel1_*");
         assert!(rule["detection"]["sel1_1"]
             .get("PipeName|contains")
             .is_some());
