@@ -18,13 +18,15 @@ from yar2sig import (
     load_mapping,
 )
 from yar2sig.backends import BackendBusyError
-from yar2sig.emitter import emit_sigma
+from yar2sig.emitter import emit_sigma, to_detection_rules
 from yar2sig.parser import parse_yara_rule
 
 MAX_RULE_BYTES = 1_000_000
 MAX_REQUEST_BYTES = 1_100_000  # Allow bounded JSON framing around the rule
 MAX_PATTERNS = 500  # Bound worst-case detection blocks per request
 MAX_PATTERN_LENGTH = 10_000  # Bound worst-case pattern size
+LAYOUTS = ("default", "detection-rules")
+MAX_ATTACK_TAGS = 10
 
 app = Flask(__name__)
 # Hard body limit enforced up front, including huge Content-Length headers.
@@ -94,6 +96,16 @@ def api_convert():
     raw_rule = data.get("rule", "")
     pipeline = data.get("pipeline", "sysmon")
     backend = data.get("backend", "splunk")
+    layout = data.get("layout") or "default"
+    attack = data.get("attack") or []
+    if layout not in LAYOUTS:
+        return _error("Unknown layout", 400, available=list(LAYOUTS))
+    if (
+        not isinstance(attack, list)
+        or len(attack) > MAX_ATTACK_TAGS
+        or not all(isinstance(item, str) and len(item) <= 20 for item in attack)
+    ):
+        return _error("attack must be a list of up to 10 technique IDs", 400)
     if raw_rule is None:
         raw_rule = ""
     if pipeline is None:
@@ -122,13 +134,17 @@ def api_convert():
             max_pattern_length=MAX_PATTERN_LENGTH,
         )
         rule, report = emit_sigma(parsed, load_mapping(pipeline))
+        quality = rule.get("x_yar2sig", {})
+        if layout == "detection-rules":
+            rule = to_detection_rules(rule, attack)  # ValueError (no technique) -> 422 below
         sigma_yaml = yaml.safe_dump(rule, sort_keys=False, allow_unicode=True)
         query = generate_query(backend, rule, parsed.get("strings", []))
         return jsonify(
             sigma=sigma_yaml,
             query=query,
             report=report,
-            quality=rule.get("x_yar2sig", {}),
+            quality=quality,
+            layout=layout,
             parsed={
                 "name": parsed["name"],
                 "patterns": len(parsed.get("strings", [])),
