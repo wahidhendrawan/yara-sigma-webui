@@ -92,3 +92,27 @@ def test_cli_stdout_keeps_template_order(tmp_path, capsys):
     assert cli_main(["convert", str(src), "--format", "detection-rules"]) == 0
     text = capsys.readouterr().out
     assert text.startswith("title:") and text.index("modified:") < text.index("references:") < text.index("fields:")
+
+
+def test_api_detection_rules_layout(capsys):
+    from app import app
+
+    client = app.test_client()
+    ok = client.post("/api/convert", json={"rule": WITH_TECHNIQUE, "layout": "detection-rules"})
+    assert ok.status_code == 200
+    payload = ok.get_json()
+    assert payload["layout"] == "detection-rules" and payload["quality"]["confidence"]
+    rule = yaml.safe_load(payload["sigma"])
+    assert list(rule) == [k for k in DETECTION_RULES_ORDER if k in rule] and "x_yar2sig" not in rule
+    assert_lint_clean(rule)
+
+    missing = client.post("/api/convert", json={"rule": NO_TECHNIQUE, "layout": "detection-rules"})
+    assert missing.status_code == 422 and "technique" in missing.get_json()["error"]
+    added = client.post("/api/convert", json={"rule": NO_TECHNIQUE, "layout": "detection-rules", "attack": ["T1204.002"]})
+    assert added.status_code == 200 and "attack.t1204.002" in yaml.safe_load(added.get_json()["sigma"])["tags"]
+
+    plain = client.post("/api/convert", json={"rule": WITH_TECHNIQUE})
+    assert plain.get_json()["layout"] == "default" and "x_yar2sig" in yaml.safe_load(plain.get_json()["sigma"])
+    assert client.post("/api/convert", json={"rule": WITH_TECHNIQUE, "layout": "nope"}).status_code == 400
+    assert client.post("/api/convert", json={"rule": WITH_TECHNIQUE, "attack": "T1"}).status_code == 400
+    assert client.post("/api/convert", json={"rule": WITH_TECHNIQUE, "attack": ["T1"] * 11}).status_code == 400

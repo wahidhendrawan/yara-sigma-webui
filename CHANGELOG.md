@@ -21,6 +21,9 @@ versioning follows [SemVer](https://semver.org/).
 - Python 3.10 is now the minimum (3.9 reached end of life in October 2025); CI tests 3.10 and 3.12.
 
 ### Added
+- **Detection-Rules layout in the web UI and API** — a checkbox (and `layout` /
+  `attack` fields on `POST /api/convert`) returns the rule in the Detection-Rules
+  repository layout; the download is named after the rule.
 - **Detection-Rules export** — `yar2sig convert --format detection-rules [--attack T1059]`
   writes rules in the layout of the Detection-Rules repository (template key order,
   `modified`, `fields`, no `x_yar2sig` block, ATT&CK technique tag required) so they

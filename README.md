@@ -120,6 +120,11 @@ docker compose up -d --build   # http://127.0.0.1:8000  (recommended)
 python app.py                  # http://127.0.0.1:5000
 ```
 
+Tick **Detection-Rules layout** to get the rule in the layout of the
+[Detection-Rules](https://github.com/wahidhendrawan/Detection-Rules) repository (see the CLI
+section); the download is then named after the rule. The API takes the same options:
+`{"layout": "detection-rules", "attack": ["T1059.001"]}` on `POST /api/convert`.
+
 Paste or import a `.yar` rule, pick a **mapping pipeline** and optional
 **query backend**, hit **Convert** (or `Ctrl+Enter`). The web UI returns a
 Sigma rule, a backend-specific SIEM/EDR query, and a conversion report in
