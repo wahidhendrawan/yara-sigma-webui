@@ -17,6 +17,9 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Python 3.10 is now the minimum (3.9 reached end of life in October 2025); CI tests 3.10 and 3.12.
+
 ### Added
 - **Detection-Rules export** — `yar2sig convert --format detection-rules [--attack T1059]`
   writes rules in the layout of the Detection-Rules repository (template key order,

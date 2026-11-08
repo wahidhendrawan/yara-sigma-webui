@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/wahidhendrawan/yara-sigma-webui?sort=semver)](https://github.com/wahidhendrawan/yara-sigma-webui/releases/latest)
 [![License](https://img.shields.io/github/license/wahidhendrawan/yara-sigma-webui)](LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/wahidhendrawan/yara-sigma-webui/badge)](https://scorecard.dev/viewer/?uri=github.com/wahidhendrawan/yara-sigma-webui)
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/docker-compose%20ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![Backends](https://img.shields.io/badge/SIEM%2FEDR%20backends-7-6366f1)](#-supported-backends)
 [![Coverage](https://codecov.io/gh/wahidhendrawan/yara-sigma-webui/branch/main/graph/badge.svg)](https://codecov.io/gh/wahidhendrawan/yara-sigma-webui)
@@ -342,7 +342,7 @@ pytest -q --cov=yar2sig --cov-report=term
 
 The test suite enforces a 70% branch-coverage floor for `yar2sig`.
 
-The repository includes GitHub Actions CI for Python 3.9 and 3.12, plus a Docker
+The repository includes GitHub Actions CI for Python 3.10 and 3.12, plus a Docker
 image build check.
 
 ---
