@@ -24,7 +24,7 @@ from . import (
     generate_query,
     load_mapping,
 )
-from .emitter import emit_sigma
+from .emitter import emit_sigma, to_detection_rules
 from .parser import parse_yara_rule
 from .progress import ProgressReporter
 from .sig2yar import SigmaConversionError, convert_sigma_file
@@ -55,11 +55,20 @@ def _convert(args: argparse.Namespace) -> int:
     # bar with streamed rule content.
     show_progress = not args.no_progress and outdir is not None and len(files) > 1
     json_results: list[dict[str, Any]] = []
+    had_error = False
 
     with ProgressReporter(total=len(files), enabled=show_progress) as progress:
         for f in files:
             results = convert_all(f.read_text(encoding="utf-8"), args.pipeline)
             for i, (rule, report) in enumerate(results):
+                if args.format == "detection-rules":
+                    try:
+                        rule = to_detection_rules(rule, args.attack)
+                    except ValueError as exc:
+                        had_error = True
+                        name = rule.get("x_yar2sig", {}).get("source_rule", rule["title"])
+                        print(f"[!] {f}: {name}: {exc}", file=sys.stderr)
+                        continue
                 result = {
                     "source": str(f),
                     "rule": rule,
@@ -97,7 +106,7 @@ def _convert(args: argparse.Namespace) -> int:
 
     if args.format == "json" and not outdir:
         print(json.dumps(_json_envelope(args.pipeline, json_results), indent=2, ensure_ascii=False))
-    return 0
+    return 1 if had_error else 0
 
 
 def _pipelines(_: argparse.Namespace) -> int:
@@ -214,9 +223,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     c.add_argument("-o", "--output", help="Output directory (required for bulk import)")
     c.add_argument(
         "--format",
-        choices=("yaml", "json"),
+        choices=("yaml", "json", "detection-rules"),
         default="yaml",
-        help="Output format (default: yaml)",
+        help="Output format (default: yaml); detection-rules writes YAML in the layout of the Detection-Rules repository",
+    )
+    c.add_argument(
+        "--attack",
+        action="append",
+        default=[],
+        metavar="TECHNIQUE",
+        help="MITRE ATT&CK technique tag to add for --format detection-rules (repeatable, e.g. T1059.001)",
     )
     c.add_argument("--dir", action="store_true", help="Force directory/bulk mode")
     c.add_argument("-v", "--verbose", action="store_true")

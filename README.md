@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/wahidhendrawan/yara-sigma-webui?sort=semver)](https://github.com/wahidhendrawan/yara-sigma-webui/releases/latest)
 [![License](https://img.shields.io/github/license/wahidhendrawan/yara-sigma-webui)](LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/wahidhendrawan/yara-sigma-webui/badge)](https://scorecard.dev/viewer/?uri=github.com/wahidhendrawan/yara-sigma-webui)
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/docker-compose%20ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![Backends](https://img.shields.io/badge/SIEM%2FEDR%20backends-7-6366f1)](#-supported-backends)
 [![Coverage](https://codecov.io/gh/wahidhendrawan/yara-sigma-webui/branch/main/graph/badge.svg)](https://codecov.io/gh/wahidhendrawan/yara-sigma-webui)
@@ -161,6 +161,9 @@ python -m yar2sig convert yara-dump/ --dir -p linux -o sigma-output/
 # Machine-readable output for CI/SIEM pipelines (one JSON document)
 python -m yar2sig convert samples/malware.yar --format json > conversion.json
 
+# Write rules straight into a Detection-Rules checkout (github.com/wahidhendrawan/Detection-Rules)
+python -m yar2sig convert rules/ -p sysmon --format detection-rules --attack T1059.001 -o ../Detection-Rules/sigma/windows/
+
 # Generate a native Splunk query
 python -m yar2sig query samples/malware.yar -b splunk
 
@@ -184,6 +187,15 @@ python -m yar2sig reverse sigma-rule.yml --no-comments
 ```
 
 If installed via `pip install -e .`, replace `python -m yar2sig` with `yar2sig`.
+
+### 📚 Detection-Rules export
+
+`--format detection-rules` writes each rule in the layout of the
+[Detection-Rules](https://github.com/wahidhendrawan/Detection-Rules) repository: its template key
+order, `modified` and `fields` filled in, the `x_yar2sig` review block dropped (the report still
+has it with `-v`), and at least one `attack.tNNNN` tag, which that repository's `detection_rules lint`
+requires. Technique IDs found in the YARA `meta` are used; add missing ones with `--attack`. A rule
+without any technique is reported on stderr and skipped, and the command exits 1.
 
 ### 🔄 Reverse Conversion (Sigma → YARA)
 
@@ -330,7 +342,7 @@ pytest -q --cov=yar2sig --cov-report=term
 
 The test suite enforces a 70% branch-coverage floor for `yar2sig`.
 
-The repository includes GitHub Actions CI for Python 3.9 and 3.12, plus a Docker
+The repository includes GitHub Actions CI for Python 3.10 and 3.12, plus a Docker
 image build check.
 
 ---
