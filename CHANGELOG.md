@@ -17,6 +17,8 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-11-08
+
 ### Changed
 - **Rewritten in Rust (4.0.0, breaking for library users)** — `yar2sig` is now one binary
   built with Cargo (`cargo build --release`). The `convert`, `pipelines`, `query` and
@@ -29,6 +31,13 @@ versioning follows [SemVer](https://semver.org/).
   functions (`convert`, `convert_all`, `parser::parse_yara_rule`, `emitter::emit_sigma`,
   `emitter::to_detection_rules`, `backends::generate_query`, `sig2yar::*`). CI runs
   `cargo fmt`, `clippy` and `cargo test` instead of pytest and Codecov.
+- Multi-field selections are joined as `1 of selN_*` instead of `(selN_1 or selN_2)`, and
+  `sigma convert` runs with `--without-pipeline`: native sigma-cli queries now actually work
+  (pySigma 0.11 crashed on the parenthesised form and the Splunk backend refused rules without
+  a processing pipeline, so the API always fell back to wildcard queries). The QRadar
+  target is `q_radar_aql` (the plugin's real name; `qradar` was never accepted).
+- The reverse converter now keeps `1 of sel*` / `all of them` terms inside boolean conditions
+  (`1 of selection_* and other`) instead of approximating the whole condition.
 
 ### Added
 - **Detection-Rules layout in the web UI and API** — a checkbox (and `layout` /

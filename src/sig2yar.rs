@@ -625,6 +625,8 @@ struct ConditionParser<'a> {
     tokens: &'a [String],
     position: usize,
     expressions: &'a [(String, String)],
+    /// Warnings from quantified terms, merged into the report afterwards.
+    warnings: Vec<String>,
 }
 
 impl<'a> ConditionParser<'a> {
@@ -647,6 +649,24 @@ impl<'a> ConditionParser<'a> {
         }
         if token.eq_ignore_ascii_case("not") {
             return Err("negation is not safely representable".into());
+        }
+        // `1 of sel*`, `all of them`, ... as a term inside a boolean expression.
+        let quantity = token.eq_ignore_ascii_case("all")
+            || token.eq_ignore_ascii_case("any")
+            || token.chars().all(|c| c.is_ascii_digit());
+        if quantity
+            && self
+                .tokens
+                .get(self.position + 1)
+                .is_some_and(|t| t.eq_ignore_ascii_case("of"))
+        {
+            let Some(target) = self.tokens.get(self.position + 2) else {
+                return Err("unexpected end".into());
+            };
+            let phrase = format!("{token} of {target}");
+            self.position += 3;
+            return quantified_condition(&phrase, self.expressions, &mut self.warnings)
+                .ok_or_else(|| format!("unusable quantifier '{phrase}'"));
         }
         self.position += 1;
         self.expressions
@@ -688,6 +708,7 @@ fn boolean_condition(
         tokens: &tokens,
         position: 0,
         expressions,
+        warnings: Vec::new(),
     };
     let result = parser.parse_or().and_then(|result| {
         if parser.position != tokens.len() {
@@ -695,6 +716,11 @@ fn boolean_condition(
         }
         Ok(result)
     });
+    for warning in parser.warnings {
+        if !report.contains(&warning) {
+            report.push(warning);
+        }
+    }
     match result {
         Ok(result) => Some(result),
         Err(exc) => {
@@ -1078,6 +1104,18 @@ mod tests {
             .iter()
             .any(|m| m.contains("unknown or unusable selection 'selX'")));
         assert!(yara.contains("($s_sel1_1 or $s_sel2_2)")); // approximated as any usable selection
+        let grouped = "  sel1_1:\n    Image: cmd.exe\n  sel1_2:\n    CommandLine: cmd.exe\n  sel2:\n    User: admin";
+        let (yara, _) = convert(&rule("Grouped", grouped, "1 of sel1_* or sel2"));
+        assert!(yara.contains("(($s_sel1_1_1 or $s_sel1_2_2) or $s_sel2_3)"));
+        let (yara, _) = convert(&rule("Grouped", grouped, "all of sel1_* and sel2"));
+        assert!(yara.contains("(($s_sel1_1_1 and $s_sel1_2_2) and $s_sel2_3)"));
+        let (yara, report) = convert(&rule("Grouped", grouped, "1 of nope_* or sel2"));
+        assert!(
+            yara.contains("(false or $s_sel2_3)")
+                && report
+                    .iter()
+                    .any(|m| m.contains("matched no usable selection"))
+        );
         let (_, report) = convert(&rule("Multi", two, "[sel1, sel2]"));
         assert!(report.iter().any(|m| m.contains("combined with OR")));
         let (_, report) = convert(&rule("Missing", two, "42"));

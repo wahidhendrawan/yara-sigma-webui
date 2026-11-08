@@ -300,7 +300,7 @@ To add a new pipeline (e.g. for Zeek, Okta, AWS CloudTrail), drop a new
 | Elastic (Lucene/KQL) | ✅ `lucene` | `message` |
 | Splunk SPL | ✅ `splunk` | `_raw` |
 | Microsoft Sentinel / Defender (KQL) | ✅ `kusto` | `ProcessCommandLine` |
-| IBM QRadar AQL | ✅ `qradar` | `payload` |
+| IBM QRadar AQL | ✅ `q_radar_aql` | `payload` |
 | VMware Carbon Black | fallback | `process_cmdline` |
 | SentinelOne Deep Visibility | fallback | `SrcProcCmdLine` |
 | CrowdStrike Falcon | fallback | `CommandLine` |
