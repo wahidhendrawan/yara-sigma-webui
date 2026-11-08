@@ -4,31 +4,32 @@
 [![Release](https://img.shields.io/github/v/release/wahidhendrawan/yara-sigma-webui?sort=semver)](https://github.com/wahidhendrawan/yara-sigma-webui/releases/latest)
 [![License](https://img.shields.io/github/license/wahidhendrawan/yara-sigma-webui)](LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/wahidhendrawan/yara-sigma-webui/badge)](https://scorecard.dev/viewer/?uri=github.com/wahidhendrawan/yara-sigma-webui)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![Rust](https://img.shields.io/badge/rust-1.85%2B-orange?logo=rust)](https://www.rust-lang.org/)
 [![Docker](https://img.shields.io/badge/docker-compose%20ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![Backends](https://img.shields.io/badge/SIEM%2FEDR%20backends-7-6366f1)](#-supported-backends)
-[![Coverage](https://codecov.io/gh/wahidhendrawan/yara-sigma-webui/branch/main/graph/badge.svg)](https://codecov.io/gh/wahidhendrawan/yara-sigma-webui)
 
 Convert **YARA rules** into **Sigma rules** and **native SIEM/EDR queries** —
 with automatic IOC classification, MITRE ATT&CK tagging, configurable mapping
-pipelines, a clean CLI, and a professional web workbench. Ships
-**Docker-Compose-ready** with gunicorn and `sigma-cli` bundled for native
+pipelines, a clean CLI, and a professional web workbench — all in **one Rust
+binary**. Ships **Docker-Compose-ready** with `sigma-cli` bundled for native
 conversion out of the box.
 
 ```bash
 docker compose up -d --build   # → http://127.0.0.1:8000
 ```
 
-> This is the **consolidated v3** release. It merges the simplicity of v1 and
-> the modular architecture of v2 into a single, working, tested, containerized
-> package.
+> **v4 is a rewrite in Rust.** One static binary serves the CLI, the web UI and
+> the JSON API. The CLI commands and flags, the mapping pipelines, the
+> `POST /api/convert` contract and the Docker deployment are unchanged; the
+> Python package and its library API are gone (see `CHANGELOG.md`).
 
 ---
 
 ## ✨ Features
 
-- **Modular library** (`yar2sig`) — parser, IOC classifier, Sigma emitter, and
-  backend query generator are cleanly separated and independently testable.
+- **One Rust binary** — parser, IOC classifier, Sigma emitter, backend query
+  generator, CLI and web server in a single `yar2sig` executable with no runtime
+  dependencies (`sigma-cli` is optional). Also usable as a Rust crate.
 - **IOC classification** — patterns are auto-classified as `url`, `ip`, `hash`,
   `email`, `domain`, `registry`, `mutex`, `user_agent`, `named_pipe`,
   `path_or_filename`, or `generic` and mapped to the right Sigma field per
@@ -37,9 +38,10 @@ docker compose up -d --build   # → http://127.0.0.1:8000
   file, rule tags, and `meta` fields.
 - **MITRE ATT&CK tagging** — technique IDs (`T1059.001`) found in `meta` are
   auto-converted to `attack.t1059.001` tags.
-- **Configurable pipelines** — YAML mapping specs under `yar2sig/mappings/`
-  define how IOCs map to fields for each log source. Ships with **sysmon**,
-  **winsec**, **linux**, and **proxy**. Add new ones without touching code.
+- **Configurable pipelines** — YAML mapping specs under `mappings/` define how
+  IOCs map to fields for each log source and are embedded at build time. Ships
+  with **sysmon**, **winsec**, **linux**, and **proxy**. Add new ones without
+  touching code.
 - **7 SIEM/EDR backends** — Elastic, Splunk, **Microsoft Sentinel/Defender (KQL)**,
   QRadar, Carbon Black, SentinelOne, CrowdStrike. Uses `sigma-cli` for native
   conversion when installed; otherwise falls back to wildcard queries.
@@ -61,8 +63,8 @@ docker compose up -d --build   # → http://127.0.0.1:8000
   regex patterns, bounded output, explicit approximation reports, and YAML
   stream support.
 - **Docker-Compose-ready** — hardened container (non-root, read-only FS,
-  dropped capabilities, resource limits) running gunicorn, with `sigma-cli`
-  and backend plugins baked in.
+  dropped capabilities, resource limits) running the release binary, with
+  `sigma-cli` and backend plugins baked in.
 
 ---
 
@@ -70,8 +72,8 @@ docker compose up -d --build   # → http://127.0.0.1:8000
 
 ### 🐳 Docker (recommended)
 
-The image bundles **gunicorn** (production WSGI) and **sigma-cli** + backend
-plugins, so native query conversion works out of the box.
+The image bundles the release binary and **sigma-cli** + backend plugins, so
+native query conversion works out of the box.
 
 ```bash
 docker compose up -d --build
@@ -84,31 +86,22 @@ Change the port with `PORT=9000 docker compose up -d`. Stop with
 The container is hardened: non-root user, read-only root FS, dropped Linux
 capabilities, `no-new-privileges`, and CPU/memory limits (1 CPU / 256 MB).
 
-### 🐍 Local (Python)
+### 🦀 Local (Rust 1.85+)
 
 ```bash
 git clone https://github.com/wahidhendrawan/yara-sigma-webui.git
 cd yara-sigma-webui
-pip install -r requirements.txt
-python app.py            # dev server on http://127.0.0.1:5000
+cargo build --release
+./target/release/yar2sig serve   # http://127.0.0.1:8000
 ```
 
-`requirements.txt` is pinned and generated from `requirements.in`; after editing
-`requirements.in`, regenerate it on Python 3.12 with
+Or put the `yar2sig` command on your PATH with `cargo install --path .`.
+
+Native query conversion needs `sigma-cli` and its backend plugins on PATH;
+`requirements.txt` pins them for the Docker image (`pip install -r requirements.txt`
+installs the same set locally). Without them, fallback wildcard queries are generated.
+`requirements.txt` is generated from `requirements.in` with
 `pip-compile --strip-extras --output-file=requirements.txt requirements.in`.
-
-Or install as a package (gives you the `yar2sig` command):
-
-```bash
-pip install -e .
-```
-
-For a full local install with web, production server, and native Sigma backend
-conversion support:
-
-```bash
-pip install -e ".[full]"
-```
 
 ---
 
@@ -116,8 +109,8 @@ pip install -e ".[full]"
 
 ```bash
 docker compose up -d --build   # http://127.0.0.1:8000  (recommended)
-# or, for local dev:
-python app.py                  # http://127.0.0.1:5000
+# or, from a checkout:
+cargo run --release -- serve   # http://127.0.0.1:8000 (--host/--port to change)
 ```
 
 Tick **Detection-Rules layout** to get the rule in the layout of the
@@ -152,46 +145,47 @@ metadata plus query output:
 
 ```bash
 # List available mapping pipelines
-python -m yar2sig pipelines
+yar2sig pipelines
 
 # Convert a single file (prints YAML)
-python -m yar2sig convert samples/malware.yar -p sysmon
+yar2sig convert samples/malware.yar -p sysmon
 
 # Convert a directory of rules into an output folder
-python -m yar2sig convert rules/ -p winsec -o out/ -v
+yar2sig convert rules/ -p winsec -o out/ -v
 
 # Bulk import: force directory mode with --dir flag
-python -m yar2sig convert yara-dump/ --dir -p linux -o sigma-output/
+yar2sig convert yara-dump/ --dir -p linux -o sigma-output/
 
 # Machine-readable output for CI/SIEM pipelines (one JSON document)
-python -m yar2sig convert samples/malware.yar --format json > conversion.json
+yar2sig convert samples/malware.yar --format json > conversion.json
 
 # Write rules straight into a Detection-Rules checkout (github.com/wahidhendrawan/Detection-Rules)
-python -m yar2sig convert rules/ -p sysmon --format detection-rules --attack T1059.001 -o ../Detection-Rules/sigma/windows/
+yar2sig convert rules/ -p sysmon --format detection-rules --attack T1059.001 -o ../Detection-Rules/sigma/windows/
 
 # Generate a native Splunk query
-python -m yar2sig query samples/malware.yar -b splunk
+yar2sig query samples/malware.yar -b splunk
 
 # Generate a Microsoft Sentinel KQL query
-python -m yar2sig query samples/malware.yar -b kusto
+yar2sig query samples/malware.yar -b kusto
 
 # Reverse: Convert Sigma YAML to YARA (best-effort)
-python -m yar2sig reverse sigma-rule.yml -o yara-out/
+yar2sig reverse sigma-rule.yml -o yara-out/
 
 # Reverse: Convert a directory of Sigma rules to YARA
-python -m yar2sig reverse sigma-rules/ -o yara-out/
+yar2sig reverse sigma-rules/ -o yara-out/
 
 # Reverse: JSON format with conversion report
-python -m yar2sig reverse sigma-rule.yml --format json
+yar2sig reverse sigma-rule.yml --format json
 
 # Reverse: Verbose mode shows warnings
-python -m yar2sig reverse sigma-rule.yml -v
+yar2sig reverse sigma-rule.yml -v
 
 # Reverse: Omit conversion warnings from YARA output
-python -m yar2sig reverse sigma-rule.yml --no-comments
+yar2sig reverse sigma-rule.yml --no-comments
 ```
 
-If installed via `pip install -e .`, replace `python -m yar2sig` with `yar2sig`.
+`yar2sig` is `./target/release/yar2sig` after `cargo build --release`, or on PATH
+after `cargo install --path .`.
 
 ### 📚 Detection-Rules export
 
@@ -222,73 +216,54 @@ The `reverse` command provides **best-effort** Sigma-to-YARA conversion. Since S
 
 ## 🧩 Library API
 
+The crate is not on crates.io; depend on it with
+`yar2sig = { git = "https://github.com/wahidhendrawan/yara-sigma-webui" }`.
+
 ### YARA → Sigma
 
-```python
-from yar2sig import convert, generate_query, available_pipelines
+```rust
+use yar2sig::backends::generate_query;
+use yar2sig::parser::parse_yara_rule;
+use yar2sig::{available_pipelines, convert, convert_all};
 
-sigma_rule, report = convert(open("rule.yar").read(), pipeline="sysmon")
-print(available_pipelines())   # ['linux', 'proxy', 'sysmon', 'winsec']
+let text = std::fs::read_to_string("rule.yar")?;
+let (sigma_rule, report) = convert(&text, "sysmon")?;   // first rule; convert_all for every rule
+println!("{}", serde_yaml_ng::to_string(&sigma_rule)?); // sigma_rule is a serde_json::Value
+println!("{:?}", available_pipelines());                 // ["linux", "proxy", "sysmon", "winsec"]
 
-# native query for a backend
-from yar2sig.parser import parse_yara_rule
-parsed = parse_yara_rule(open("rule.yar").read())
-print(generate_query("splunk", sigma_rule, parsed["strings"]))
+// native query for a backend (sigma-cli when on PATH, fallback otherwise)
+let parsed = parse_yara_rule(&text, 500, 10_000)?;
+println!("{}", generate_query("splunk", &sigma_rule, &parsed.values())?);
 ```
 
 ### Sigma → YARA (Reverse)
 
-```python
-from yar2sig import convert_sigma_to_yara, convert_sigma_text, convert_sigma_file
+```rust
+use yar2sig::sig2yar::{convert_sigma_file, convert_sigma_text, convert_sigma_to_yara, ReverseOptions};
 
-# Convert a single parsed Sigma rule
-sigma_rule = {
-    "title": "Suspicious Process",
-    "detection": {
-        "selection": {"CommandLine": "powershell.exe -enc"},
-        "condition": "selection"
+// YAML text (supports multiple documents) or a file: one (yara_source, report) per rule
+for (yara_source, report) in convert_sigma_text(&yaml_text, &ReverseOptions::default())? {
+    println!("{yara_source}");
+    for warning in &report {
+        println!("  {warning}");
     }
 }
-yara_source, report = convert_sigma_to_yara(sigma_rule)
-print(yara_source)
-for warning in report:
-    print(f"  {warning}")
+let results = convert_sigma_file(std::path::Path::new("rule.yml"), &ReverseOptions::default())?;
 
-# Convert YAML text (supports multiple documents)
-yaml_text = open("sigma-rules.yml").read()
-results = convert_sigma_text(yaml_text)
-for yara_source, report in results:
-    print(yara_source)
-
-# Convert from file
-results = convert_sigma_file("rule.yml")
-yara_source, report = results[0]
-
-# Control limits and comments
-yara_source, report = convert_sigma_to_yara(
-    sigma_rule,
-    max_patterns=100,           # default: 500
-    max_pattern_length=5000,    # default: 10000 bytes
-    include_comments=False      # default: True
-)
+// A single parsed rule (serde_yaml_ng::Value), with limits and comments under control
+let options = ReverseOptions { max_patterns: 100, max_pattern_length: 5000, include_comments: false };
+let (yara_source, report) = convert_sigma_to_yara(&sigma_rule, &options)?;
 ```
 
-**Exception handling:**
-
-```python
-from yar2sig import SigmaConversionError
-
-try:
-    results = convert_sigma_text(user_input)
-except SigmaConversionError as e:
-    print(f"Invalid Sigma rule: {e}")
-```
+Invalid input and bound violations are `yar2sig::Error` (its message is the
+`error` field the API returns); a saturated native backend is
+`yar2sig::backends::BackendBusy`.
 
 ---
 
 ## 🗂️ Mapping Pipelines
 
-Each pipeline is a YAML file in `yar2sig/mappings/`:
+Each pipeline is a YAML file in `mappings/`:
 
 ```yaml
 logsource:
@@ -306,7 +281,8 @@ mappings:
 ```
 
 To add a new pipeline (e.g. for Zeek, Okta, AWS CloudTrail), drop a new
-`.yaml` file in that directory — it's picked up automatically.
+`.yaml` file in that directory — `build.rs` embeds every file on the next
+`cargo build`, no code change needed.
 
 | Pipeline | Log source | Use case |
 |---|---|---|
@@ -333,7 +309,7 @@ Install `sigma-cli` + the relevant backend plugin for native conversion.
 
 Each native conversion runs `sigma-cli` as a subprocess. `YAR2SIG_SIGMA_CONCURRENCY`
 caps how many run at once per server process (default: CPU count; the Docker
-image sets `1`). When every slot is busy, `/api/convert` returns `503` with
+image sets `2`). When every slot is busy, `/api/convert` returns `503` with
 `Retry-After`.
 
 ---
@@ -341,14 +317,12 @@ image sets `1`). When every slot is busy, `/api/convert` returns `503` with
 ## 🧪 Tests
 
 ```bash
-pip install -e ".[web,dev]"
-pytest -q --cov=yar2sig --cov-report=term
+cargo test                                   # unit, CLI and HTTP API tests
+cargo clippy --all-targets -- -D warnings    # lint
 ```
 
-The test suite enforces a 70% branch-coverage floor for `yar2sig`.
-
-The repository includes GitHub Actions CI for Python 3.10 and 3.12, plus a Docker
-image build check.
+GitHub Actions CI runs `cargo fmt --check`, clippy, the tests, a CLI smoke test,
+and a Docker image build + healthcheck.
 
 ---
 

@@ -1,7 +1,4 @@
-Flask>=3.0
-PyYAML>=6.0.1
-gunicorn>=23.0
-# Native backend conversion (bundled in the Docker image)
+# Native backend conversion for the Docker image (sigma-cli + backend plugins); yar2sig itself is Rust.
 sigma-cli>=1.0
 pysigma-backend-elasticsearch>=1.1
 pysigma-backend-splunk>=1.1
